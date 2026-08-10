@@ -50,10 +50,37 @@ def _parse_spend(markdown: str) -> float:
     return total
 
 
+def _is_mcp_unavailable_placeholder(text: str) -> bool:
+    """Detect the empty N/A report that automations send when ads MCPs are missing.
+
+    Those cards are not real performance data — never post them to Feishu.
+    """
+    mcp_missing_signals = (
+        "TikTok 官方 MCP 未挂载",
+        "Meta/Pipeboard MCP 未挂载",
+        "Meta MCP 未挂载",
+        "MCP 未挂载",
+        "MCP 均未出现",
+        "无法拉取昨日指标",
+        "环境无广告 API Token",
+    )
+    if any(s in text for s in mcp_missing_signals):
+        return True
+    # Overview lines that only carry N/A (no real $ amounts)
+    overview = [ln for ln in text.splitlines() if ln.startswith(("TikTok：", "Meta：", "合计："))]
+    if overview and all("N/A" in ln for ln in overview) and not re.search(
+        r"\$[0-9]+(?:\.[0-9]+)?", "\n".join(overview)
+    ):
+        return True
+    return False
+
+
 def should_send(text: str) -> tuple[bool, str, float]:
     stripped = text.strip()
     if not stripped:
         return False, "empty body", 0.0
+    if _is_mcp_unavailable_placeholder(stripped):
+        return False, "MCP unavailable / N/A placeholder report — do not post", 0.0
     spend = _parse_spend(stripped)
     markers = ("暂无消耗", "无投放数据", "没有信息", "NO_DATA")
     if spend < MIN_SPEND_USD and any(m in stripped for m in markers):
