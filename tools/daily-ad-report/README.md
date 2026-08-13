@@ -2,6 +2,11 @@
 
 ## 自动任务（Cursor Automations）
 
+**状态（2026-08-13）：已按需求要求停用。**  
+请到 UI 关闭开关（本仓库 / Cloud Agent MCP **无法**写 Automations）：  
+https://cursor.com/automations/7e86604e-9244-11f1-ba66-0e7d0216e441  
+操作：打开页面 → 关掉 **Enabled**（或删除该 Automation）。关闭前仍会按 cron 继续跑。
+
 配置名：**每日投放日报**  
 ID：`7e86604e-9244-11f1-ba66-0e7d0216e441`  
 Cron：`0 2 * * *`（UTC）= 北京时间 10:00  
@@ -9,15 +14,15 @@ Cron：`0 2 * * *`（UTC）= 北京时间 10:00
 飞书：automation prompt 内嵌 bot webhook（`msg_type=post`）
 
 说明：Webhook / automation 定义在 Cursor Automations UI，**不在本仓库**。  
-普通 Cloud Agent（无该 environment）会表现为「没有 webhook / 看不到自动任务」。
+`cursor-cloud` MCP 仅有只读 `get-automation`，没有 disable/delete。  
+改日若要恢复：重新 Enabled，并先挂载 `tiktok ads` + `meta ads`，再粘贴下方推荐 Prompt。
 
-### 2026-08-09 空报根因
+### 空报根因（为何停用）
 
-自动化跑在 environment `ed6f44fd-…` 时，MCP 目录里**只有** `cursor-cloud` / Automation Tools，**没有** `tiktok ads` 与 `meta ads`。  
-Prompt 旧规则「任一 MCP 失败仍发完整报告」导致飞书收到全 N/A 空报。  
-同账号的 Desktop Agent 会话是能拉到真实数据的——问题在**自动化环境未挂载广告 MCP**，不是账号没权限。
+自动化跑在 environment `ed6f44fd-…` 时，MCP 目录里**只有** `cursor-cloud`，**没有** `tiktok ads` 与 `meta ads`，连续发出全 N/A 飞书空报。  
+同账号 Desktop / 普通 Cloud Agent 能拉真实数据——问题在**自动化环境未挂载广告 MCP**。
 
-### 必须在 Automations UI 做的两件事
+### 若以后重新启用，必须在 Automations UI 做的两件事
 
 1. 给自动化环境挂载并授权：`tiktok ads`、`meta ads`（Pipeboard）
 2. 把 prompt 换成下方「推荐 Prompt」（禁止再发 MCP 缺失空报）
