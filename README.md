@@ -18,3 +18,7 @@ npm run dev
 ```
 
 冒烟测试:`npm run smoke`
+
+## Wanaka 引擎 · Floor is Lava
+
+若要用 [Wanaka](https://www.wanaka.world/) 创作代理做一款地板即熔岩游戏（场景锁在大楼楼梯间往上爬），直接复制 [`prompts/wanaka-floor-is-lava.md`](prompts/wanaka-floor-is-lava.md) 里的短 Prompt，贴进 [Wanaka Studio](https://studio.wanaka.fun/) 的 Create 输入框。完整规则和迭代指令也在同一文件里。
