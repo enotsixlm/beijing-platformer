@@ -35,8 +35,21 @@ function loadSdkScript() {
   })
 }
 
+function shouldUseSdk() {
+  const q = new URLSearchParams(location.search)
+  if (q.get('useLocalSdk') === 'true') return true
+  const host = location.hostname.toLowerCase()
+  if (host.includes('crazygames')) return true
+  try {
+    return window.self !== window.top
+  } catch {
+    return true
+  }
+}
+
 export async function initCrazyGames() {
   try {
+    if (!shouldUseSdk()) return null
     const loaded = await loadSdkScript()
     if (!loaded) return null
     const CG = window.CrazyGames?.SDK

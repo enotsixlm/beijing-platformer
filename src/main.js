@@ -245,7 +245,7 @@ const camLook = new THREE.Vector3()
 function frame(now) {
   requestAnimationFrame(frame)
   frames++
-  const dt = Math.min((now - lastT) / 1000, 0.05)
+  const dt = Math.min((now - lastT) / 1000, 0.2)
   lastT = now
 
   // 相机旋转
