@@ -2,6 +2,9 @@ import * as THREE from 'three'
 import { buildLevel, updateMovers } from './level.js'
 import { createPandaMesh, createPlayerState, stepPlayer, syncPandaMesh, P } from './player.js'
 import { applyPaperEdges } from './paper.js'
+import {
+  initCrazyGames, loadingStop, gameplayStart, gameplayStop, happytime, pickLang,
+} from './crazygames.js'
 
 const PHYS_DT = 1 / 120
 
@@ -162,31 +165,74 @@ function toast(text) {
   toastTimer = setTimeout(() => { el.toast.style.opacity = 0 }, 1600)
 }
 
+const COPY = {
+  zh: {
+    title: '🐼 北京跑酷',
+    sub: '从天安门出发，翻过胡同屋脊、灯笼桥、天坛与 CBD 楼顶，<br>一路向北跳进鸟巢！小心别掉到马路上。',
+    start: '按任意键开始',
+    tips: 'WASD/方向键 移动 · 空格 跳(可二段跳) · Q/E 转视角 · R 回检查点',
+    win: '🏅 跳进鸟巢!',
+    retry: '按 R 再跑一次',
+    coins: (t, n) => `用时 ${t}<br>金币 ${n} / ${level.coins.length}`,
+  },
+  en: {
+    title: '🐼 Beijing Parkour',
+    sub: 'Start at Tiananmen, vault hutong roofs, lantern bridges, the Temple of Heaven and CBD towers,<br>then leap into the Bird\'s Nest. Don\'t fall onto the street.',
+    start: 'Press any key to start',
+    tips: 'WASD/Arrows move · Space jump (double-jump) · Q/E camera · R checkpoint',
+    win: '🏅 Into the Bird\'s Nest!',
+    retry: 'Press R to run again',
+    coins: (t, n) => `Time ${t}<br>Coins ${n} / ${level.coins.length}`,
+  },
+}
+
+const lang = pickLang()
+const copy = COPY[lang] || COPY.zh
+document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'
+document.title = lang === 'en' ? 'Beijing Parkour · Panda Jump' : '北京跑酷 · 熊猫跳跳'
+{
+  const h1 = el.overlay.querySelector('h1')
+  const sub = el.overlay.querySelector('.sub')
+  const blink = el.overlay.querySelector('.blink')
+  const tips = document.getElementById('tips')
+  if (h1) h1.innerHTML = copy.title
+  if (sub) sub.innerHTML = copy.sub
+  if (blink) blink.textContent = copy.start
+  if (tips) tips.textContent = copy.tips
+}
+
 anyKeyHook = () => {
   phase = 'play'
   startT = performance.now()
   el.overlay.classList.add('hidden')
+  gameplayStart()
 }
 
 function doRespawn(fell) {
   player.pos.copy(respawn.pos)
   player.pos.y += 0.1
   player.vx = player.vy = player.vz = 0
-  if (fell) { sfx.fall(); toast('掉到马路上啦!回到 ' + respawn.name) }
+  if (fell) {
+    sfx.fall()
+    toast(lang === 'en'
+      ? `Fell on the street! Back to ${respawn.name}`
+      : '掉到马路上啦!回到 ' + respawn.name)
+  }
 }
 
 function winRace() {
   phase = 'win'
   winTime = performance.now() - startT
   sfx.win()
+  gameplayStop()
+  happytime()
   el.overlay.classList.remove('hidden')
   el.overlay.innerHTML = `
-    <h1>🏅 跳进鸟巢!</h1>
+    <h1>${copy.win}</h1>
     <div class="sub">
-      用时 ${fmt(winTime)}<br>
-      金币 ${coinCount} / ${level.coins.length}
+      ${copy.coins(fmt(winTime), coinCount)}
     </div>
-    <p class="blink">按 R 再跑一次</p>`
+    <p class="blink">${copy.retry}</p>`
 }
 
 // ---------- 主循环 ----------
@@ -322,3 +368,4 @@ function frame(now) {
 }
 requestAnimationFrame(frame)
 window.__game.ready = true
+initCrazyGames().then(() => loadingStop())

@@ -15,8 +15,11 @@ await new Promise((res, rej) => {
   setTimeout(() => rej(new Error('vite start timeout')), 20000)
 })
 
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+const launchOpts = { args: ['--enable-unsafe-swiftshader', '--no-sandbox'] }
+const macShell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
+if (process.env.PLAYWRIGHT_CHROMIUM) launchOpts.executablePath = process.env.PLAYWRIGHT_CHROMIUM
+else if (process.platform === 'darwin') launchOpts.executablePath = macShell
+const browser = await chromium.launch(launchOpts)
 
 const failures = []
 const pass = (name) => console.log('  ✅', name)
