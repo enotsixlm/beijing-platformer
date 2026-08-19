@@ -2,6 +2,7 @@
   "portal": "CrazyGames Developer Portal",
   "submitUrl": "https://developer.crazygames.com/",
   "docs": "https://docs.crazygames.com/",
+  "requestedDelivery": "See tools/pchcruise-delivery.json — Fenomeno PCH at https://pchcruise.netlify.app/",
   "playableNow": "https://enotsixlm.github.io/beijing-platformer/",
   "build": {
     "command": "npm run build:crazygames",
@@ -18,7 +19,7 @@
     "shortDescription": "Papercraft 3D panda parkour from Tiananmen Square to the Bird's Nest. All art is generated in code.",
     "longDescription": "Play as a papercraft panda and run north through Beijing: Tiananmen, hutong rooftops, lantern alleys, the Temple of Heaven, CBD skyscrapers, the Water Cube, and finally the Bird's Nest. Collect coins, hit checkpoints, double-jump across moving lantern bridges — fall onto the street and you respawn. Built with three.js; every mesh, texture, and sound is procedural. No downloads.",
     "instructions": "WASD / Arrow keys: move. Space: jump (tap again in air for a double jump). Q / E: rotate camera. R: respawn at last checkpoint (or restart after winning). Press any key on the title card to start.",
-    "tags": ["3D", "platformer", "parkour", "panda", "beijing", "paper", "endless-runner-like"],
+    "tags": ["3D", "platformer", "parkour", "panda", "beijing", "paper"],
     "covers": [
       "shots/0-title.png",
       "shots/1-start.png",
