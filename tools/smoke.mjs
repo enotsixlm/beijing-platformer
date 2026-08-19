@@ -1,11 +1,25 @@
-// 无头冒烟测试:走/跳/检查点/金币/移动平台载运/掉落重生/终点胜利
+// 无头冒烟:走/跳/二段跳/倒计时熔岩/楼梯/开裂踏步/天台胜利
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { existsSync } from 'node:fs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = 5211
+
+function findChrome() {
+  const candidates = [
+    process.env.PLAYWRIGHT_CHROMIUM,
+    process.env.CHROME_PATH,
+    join(process.env.HOME || '', 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell'),
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/chrome',
+  ]
+  return candidates.find((p) => p && existsSync(p))
+}
 
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'pipe' })
 await new Promise((res, rej) => {
@@ -15,8 +29,11 @@ await new Promise((res, rej) => {
   setTimeout(() => rej(new Error('vite start timeout')), 20000)
 })
 
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+const shell = findChrome()
+const browser = await chromium.launch({
+  executablePath: shell,
+  args: ['--enable-unsafe-swiftshader', '--use-gl=angle'],
+})
 
 const failures = []
 const pass = (name) => console.log('  ✅', name)
@@ -39,21 +56,19 @@ try {
   const idle = () => page.evaluate('window.__game.input = {x:0,z:0,jumpPressed:false}')
   const sleep = (ms) => page.waitForTimeout(ms)
 
-  // 开始游戏
-  await page.evaluate('window.__game.start()')
+  await page.evaluate('window.__game.start({ immediate: true, lava: -1, players: 1 })')
   await sleep(300)
   check((await S()).phase === 'play', '进入游戏(play)')
+  check((await S()).playerCount === 1, '1 人开局')
 
-  // 1. 向北走
   const s0 = await S()
   await setInput({ x: 0, z: -1, jumpPressed: false })
-  await sleep(1200)
+  await sleep(1100)
   await idle()
   const s1 = await S()
-  check(s1.pos.z < s0.pos.z - 5, '向北行走', JSON.stringify([s0.pos, s1.pos]))
+  check(s1.pos.z < s0.pos.z - 4, '朝楼梯井行走', JSON.stringify([s0.pos, s1.pos]))
 
-  // 2. 跳跃高度
-  await tp(0, 0, 10)
+  await tp(s0.pos.x, 0.02, s0.pos.z)
   await sleep(200)
   await setInput({ x: 0, z: 0, jumpPressed: true })
   let peak = 0
@@ -62,10 +77,9 @@ try {
     const s = await S()
     peak = Math.max(peak, s.pos.y)
   }
-  check(peak > 1.6 && peak < 2.6, `单跳高度约 2m(实测 ${peak.toFixed(2)})`)
+  check(peak > 1.3 && peak < 2.5, `单跳高度约 1.7m(实测 ${peak.toFixed(2)})`)
 
-  // 3. 二段跳:跳起后再按一次
-  await tp(0, 0, 10)
+  await tp(s0.pos.x, 0.02, s0.pos.z)
   await sleep(200)
   await setInput({ x: 0, z: 0, jumpPressed: true })
   await sleep(260)
@@ -76,69 +90,41 @@ try {
     const s = await S()
     peak = Math.max(peak, s.pos.y)
   }
-  check(peak > 3.0, `二段跳更高(实测 ${peak.toFixed(2)})`)
+  check(peak > 2.4, `二段跳更高(实测 ${peak.toFixed(2)})`)
   await idle()
 
-  // 4. 站上天安门城楼 → 激活检查点
-  await tp(6, 11.5, -14.7)
-  await sleep(500)
+  const test = (await S()).test
+  await tp(test.stair.x, test.stair.y, test.stair.z)
+  await sleep(400)
   let s = await S()
-  check(s.grounded && Math.abs(s.pos.y - 11) < 0.3, '站上城楼白玉栏杆', JSON.stringify(s.pos))
-  check(s.checkpoint === '天安门城楼', '激活城楼检查点', s.checkpoint)
+  check(s.grounded && s.pos.y > 0.1, '站上第一级踏步', JSON.stringify(s.pos))
 
-  // 5. 吃金币:传送到胡同屋脊金币处
-  const c0 = s.coinCount
-  await tp(0, 5.4, -70.5)
-  await sleep(600)
+  await tp(test.mid2.x, test.mid2.y, test.mid2.z)
+  await sleep(400)
   s = await S()
-  check(s.coinCount > c0, '吃到金币', `coins ${c0} → ${s.coinCount}`)
-  check(s.checkpoint === '胡同屋脊', '激活胡同检查点', s.checkpoint)
+  check(s.grounded && s.floor >= 2, '站上 2 楼休息平台', JSON.stringify(s.pos))
 
-  // 6. 掉到马路 → 回检查点
-  await tp(20, 0.02, -70)
-  await sleep(600)
+  await tp(test.crumble.x, test.crumble.y, test.crumble.z)
+  await sleep(200)
   s = await S()
-  check(Math.abs(s.pos.z - -70.5) < 4 && s.pos.y > 3, '掉马路后重生回胡同检查点', JSON.stringify(s.pos))
-
-  // 7. 移动平台载运:站上灯笼桥移动灯笼
-  await tp(0, 8.4, -113.5)
-  await sleep(300)
+  check(s.grounded, '站上开裂踏步', JSON.stringify(s.pos))
+  await sleep(1400)
   s = await S()
-  if (s.grounded) {
-    const x0 = s.pos.x
-    await sleep(900)
-    s = await S()
-    check(Math.abs(s.pos.x - x0) > 0.5, '移动平台载着走', `x ${x0} → ${s.pos.x}`)
-  } else {
-    // 平台可能刚好摆走了,再试平台当前位置
-    await sleep(1200)
-    await tp(0, 8.4, -113.5)
-    await sleep(400)
-    s = await S()
-    check(true, '移动平台存在(位置随时间变化,跳过载运断言)')
-  }
+  check(!s.grounded || s.pos.y < test.crumble.y - 0.3, '踏步 1.2s 后开裂掉落', JSON.stringify(s.pos))
 
-  // 8. 沿途关键站点都能站稳
-  const stands = [
-    ['天坛顶层环道', 0, 5.0, -143],
-    ['CBD 第一栋楼顶', 0, 8.5, -173],
-    ['CBD 最高楼顶', 0, 23.5, -221],
-    ['水立方屋顶', 0, 11.5, -262],
-  ]
-  for (const [name, x, y, z] of stands) {
-    await tp(x, y, z)
-    await sleep(500)
-    s = await S()
-    check(s.grounded && s.pos.y > y - 1.5, `站稳:${name}`, JSON.stringify(s.pos))
-  }
-
-  // 9. 鸟巢终点 → 胜利
-  await tp(0, 6.5, -303)
-  await sleep(800)
+  await page.evaluate('window.__game.teleport(window.__game.state().test.lobby.x, 0.02, window.__game.state().test.lobby.z)')
+  await page.evaluate('window.__game.ignite()')
+  await sleep(400)
   s = await S()
-  check(s.phase === 'win', '跳进鸟巢触发胜利', s.phase)
+  check(s.alive === false && s.phase === 'dead', '大厅熔岩即死', JSON.stringify(s))
 
-  // 10. 帧与报错
+  await page.evaluate('window.__game.start({ immediate: true, lava: -1, players: 1 })')
+  await sleep(200)
+  await page.evaluate('const t = window.__game.state().test.goal; window.__game.teleport(t.x, t.y, t.z)')
+  await sleep(700)
+  s = await S()
+  check(s.phase === 'win', '天台安全门胜利', s.phase)
+
   check(s.frames > 200, `渲染帧数正常(${s.frames})`)
   check(pageErrors.length === 0, '无页面报错', pageErrors.slice(0, 3).join(' | '))
 

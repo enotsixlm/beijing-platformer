@@ -1,1 +1,1 @@
-export default { base: '/beijing-platformer/' }
+export default { base: './' }
