@@ -94,7 +94,7 @@ export function syncLava(lava, lavaY, now, started) {
   lava.mesh.position.y = lavaY - thick / 2
   lava.glow.position.set(0, lavaY + 0.04, lava.bounds.z)
   lava.light.position.set(0, lavaY + 0.8, 0)
-  lava.light.intensity = started ? 18 + Math.sin(now * 0.006) * 3 : 0
+  lava.light.intensity = started ? 28 + Math.sin(now * 0.006) * 5 : 4
   lava.tex.offset.y = (now * 0.00008) % 1
   lava.tex.offset.x = Math.sin(now * 0.0003) * 0.05
   for (const s of lava.haze) {

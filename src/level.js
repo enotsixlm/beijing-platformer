@@ -159,7 +159,7 @@ function makeBox(L, x, y, z, mats) {
 // Per-flight: missing indices, crumble indices, half-step {i, side:-1|1}
 const FLIGHTS = [
   { missing: [], crumble: [], half: [] },
-  { missing: [], crumble: [8], half: [] },
+  { missing: [7, 9], crumble: [8], half: [] },
   { missing: [5], crumble: [], half: [] },
   { missing: [], crumble: [3], half: [{ i: 7, side: 1 }] },
   { missing: [4, 5], crumble: [8], half: [] },
@@ -277,6 +277,14 @@ function buildStairwell(L, mats) {
     visualBox(L, westRailX, fy + 0.15, 0, 0.06, 0.7, C.WELL_D - C.LANDING_D * 2 - 0.25, mats.rail)
     visualBox(L, eastRailX, fy + C.FLOOR_H / 2 + 0.15, 0, 0.06, 0.7, C.WELL_D - C.LANDING_D * 2 - 0.25, mats.rail)
 
+    const run = C.STEPS * C.TREAD
+    const rise = C.STEPS * C.RISER
+    const slant = Math.atan2(rise, run)
+    const westStr = visualBox(L, C.WEST_X + C.STAIR_W / 2 - 0.04, fy + rise / 2 - 0.05, (westZ(0) + westZ(C.STEPS - 1)) / 2, 0.07, 0.22, Math.hypot(run, rise) + 0.2, mats.rail)
+    westStr.rotation.x = slant
+    const eastStr = visualBox(L, C.EAST_X - C.STAIR_W / 2 + 0.04, fy + C.FLOOR_H / 2 + rise / 2 - 0.05, (eastZ(0) + eastZ(C.STEPS - 1)) / 2, 0.07, 0.22, Math.hypot(run, rise) + 0.2, mats.rail)
+    eastStr.rotation.x = -slant
+
     // floor plaque
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.55), new THREE.MeshBasicMaterial({ map: floorSignTex(`${n + 1}F`) }))
     sign.position.set(-hw + 0.03, fy + 1.7, hd - C.LANDING_D / 2)
@@ -378,11 +386,11 @@ export function buildLevel(scene) {
   })
 
   const mats = {
-    wall: toon(0x7a7f76, { map: conc }),
-    tile: toon(0x9aa0a6, { map: tiles }),
-    tread: toon(0x8b9088),
-    crumble: toon(0xa87858),
-    broken: toon(0x6a6560),
+    wall: toon(0xb3b8ae, { map: conc, emissive: 0x242820, emissiveIntensity: 0.12 }),
+    tile: toon(0xc5ccd2, { map: tiles, emissive: 0x1a2228, emissiveIntensity: 0.08 }),
+    tread: toon(0xc2c6be, { emissive: 0x2a2c28, emissiveIntensity: 0.08 }),
+    crumble: toon(0xc48a62, { emissive: 0x3a2010, emissiveIntensity: 0.12 }),
+    broken: toon(0x8a8680, { emissive: 0x222018, emissiveIntensity: 0.08 }),
     rail: toon(0x2a3036, { emissive: 0x111418, emissiveIntensity: 0.15 }),
     desk: toon(0x3a3330),
     deskTop: toon(0x2a2420),
@@ -420,6 +428,7 @@ export function buildLevel(scene) {
         }
       : { x: C.EAST_X, y: C.FLOOR_H / 2 + 9 * C.RISER, z: eastZ(8) },
     goal: { x: 0, y: C.ROOF_Y + 0.05, z: -C.WELL_D / 2 + 1.0 },
+    roof: { x: 0, y: C.ROOF_Y + 0.05, z: C.WELL_D / 2 - C.LANDING_D / 2 },
     lobby: { x: 0, y: 0.02, z: C.WELL_D / 2 + 2.6 },
     mid2: { x: 0, y: C.FLOOR_H + 0.05, z: C.WELL_D / 2 - C.LANDING_D / 2 },
   }

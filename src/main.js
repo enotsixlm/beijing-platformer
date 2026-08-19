@@ -14,37 +14,34 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 0.92
+renderer.toneMappingExposure = 1.22
 renderer.domElement.id = 'game'
 document.body.prepend(renderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x0c0708)
-scene.fog = new THREE.FogExp2(0x1a0a08, 0.028)
+scene.fog = new THREE.FogExp2(0x1a0c0a, 0.016)
 
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.12, 120)
 
-const hemi = new THREE.HemisphereLight(0x7ec8e8, 0x4a1808, 0.55)
+const hemi = new THREE.HemisphereLight(0xb7e4ff, 0x6a2a12, 1.05)
 scene.add(hemi)
-const fill = new THREE.DirectionalLight(0x9ad8ff, 0.35)
-fill.position.set(4, 18, 6)
-fill.castShadow = true
-fill.shadow.mapSize.set(1024, 1024)
-fill.shadow.camera.near = 1
-fill.shadow.camera.far = 50
-fill.shadow.camera.left = -10
-fill.shadow.camera.right = 10
-fill.shadow.camera.top = 10
-fill.shadow.camera.bottom = -10
+scene.add(new THREE.AmbientLight(0x4a5560, 0.62))
+const fill = new THREE.DirectionalLight(0xc8e8ff, 0.7)
+fill.position.set(2, 22, 8)
+fill.castShadow = false
 scene.add(fill, fill.target)
 
-const emergency = new THREE.PointLight(0x7ad7ff, 2.4, 16, 1.8)
-emergency.position.set(0, 2.4, C.WELL_D / 2 + 1)
+const emergency = new THREE.PointLight(0x9ae8ff, 5.5, 18, 1.4)
+emergency.position.set(0, 2.6, C.WELL_D / 2 + 0.4)
 scene.add(emergency)
-const emergency2 = new THREE.PointLight(0x7ad7ff, 1.6, 14, 1.8)
-emergency2.position.set(0, C.FLOOR_H * 3 + 2.2, 0)
+const emergency2 = new THREE.PointLight(0x9ae8ff, 4.2, 16, 1.4)
+emergency2.position.set(0, C.FLOOR_H * 2 + 2.2, -C.WELL_D / 2 + 0.6)
 scene.add(emergency2)
-const exitLight = new THREE.PointLight(0x3dff8a, 2.2, 10, 2)
+const emergency3 = new THREE.PointLight(0x9ae8ff, 4.2, 16, 1.4)
+emergency3.position.set(0, C.FLOOR_H * 4 + 2.2, C.WELL_D / 2 - 0.6)
+scene.add(emergency3)
+const exitLight = new THREE.PointLight(0x3dff8a, 4.0, 12, 1.6)
 exitLight.position.set(0, C.ROOF_Y + 1.8, -C.WELL_D / 2 + 1)
 scene.add(exitLight)
 
@@ -381,10 +378,10 @@ let lastCrack = 0
 function frame(now) {
   requestAnimationFrame(frame)
   frames++
-  const dt = Math.min((now - lastT) / 1000, 0.05)
+  const dt = Math.min((now - lastT) / 1000, 0.25)
   lastT = now
 
-  emergency.intensity = 2.1 + Math.sin(now * 0.012) * 0.5 + (Math.random() < 0.01 ? -1.2 : 0)
+  emergency.intensity = 5.2 + Math.sin(now * 0.012) * 0.6 + (Math.random() < 0.008 ? -1.8 : 0)
 
   if (phase === 'countdown') {
     countdownLeft = Math.max(0, COUNTDOWN - (now - startT) / 1000)
@@ -479,7 +476,7 @@ function frame(now) {
   fill.target.position.copy(focus.pos)
   fill.position.set(focus.pos.x + 3, focus.pos.y + 12, focus.pos.z + 4)
 
-  const fogBase = 0.022 + Math.max(0, (level.lavaY / C.ROOF_Y)) * 0.02
+  const fogBase = 0.012 + Math.max(0, (level.lavaY / C.ROOF_Y)) * 0.014
   scene.fog.density = fogBase
   scene.background.lerp(new THREE.Color(level.lavaStarted ? 0x1a0806 : 0x0c0708), 0.05)
 

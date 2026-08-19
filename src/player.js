@@ -8,7 +8,7 @@ export const P = {
   doubleJumpV: 9.2,
   coyote: 0.12,
   jumpBuffer: 0.14,
-  halfW: 0.28,
+  halfW: 0.16,
   height: 1.42,
   stepHeight: 0.34,
 }

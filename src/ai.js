@@ -21,8 +21,8 @@ export function stepCpu(p, dt, waypoints) {
 
   let jumpPressed = false
   p._jumpCd = (p._jumpCd || 0) - dt
-  const gap = dist > 0.85 && dy > 0.12
-  const up = dy > 0.42 && dist < 1.6
+  const gap = dist > 0.52 && dy > 0.08
+  const up = dy > 0.38 && dist < 1.8
   if ((gap || up) && p._jumpCd <= 0 && (p.grounded || p.canDouble)) {
     jumpPressed = true
     p._jumpCd = 0.42
