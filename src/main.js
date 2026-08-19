@@ -1,38 +1,49 @@
 import * as THREE from 'three'
-import { buildLevel, updateMovers } from './level.js'
-import { createPandaMesh, createPlayerState, stepPlayer, syncPandaMesh, P } from './player.js'
-import { applyPaperEdges } from './paper.js'
+import { buildLevel, igniteLobby, updateCrumbles, updateBoxes, floorIndex, C } from './level.js'
+import { createRunnerMesh, createPlayerState, stepPlayer, syncRunnerMesh } from './player.js'
+import { createLava, syncLava } from './lava.js'
+import { stepCpu, cpuName } from './ai.js'
 
 const PHYS_DT = 1 / 120
+const COUNTDOWN = 5
+const LAVA_SPEED = 0.34
 
-// ---------- 渲染基础 ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.2
+renderer.toneMappingExposure = 1.22
 renderer.domElement.id = 'game'
 document.body.prepend(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xb5d9ec)
-scene.fog = new THREE.Fog(0xd3e7f0, 260, 1200)
+scene.background = new THREE.Color(0x0c0708)
+scene.fog = new THREE.FogExp2(0x1a0c0a, 0.016)
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1500)
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.12, 120)
 
-const hemi = new THREE.HemisphereLight(0xd6ecff, 0x8fb573, 1.1)
+const hemi = new THREE.HemisphereLight(0xb7e4ff, 0x6a2a12, 1.05)
 scene.add(hemi)
-const sun = new THREE.DirectionalLight(0xfff4da, 1.7)
-sun.castShadow = true
-sun.shadow.mapSize.set(2048, 2048)
-sun.shadow.camera.left = -80
-sun.shadow.camera.right = 80
-sun.shadow.camera.top = 80
-sun.shadow.camera.bottom = -80
-sun.shadow.camera.far = 400
-scene.add(sun, sun.target)
+scene.add(new THREE.AmbientLight(0x4a5560, 0.62))
+const fill = new THREE.DirectionalLight(0xc8e8ff, 0.7)
+fill.position.set(2, 22, 8)
+fill.castShadow = false
+scene.add(fill, fill.target)
+
+const emergency = new THREE.PointLight(0x9ae8ff, 5.5, 18, 1.4)
+emergency.position.set(0, 2.6, C.WELL_D / 2 + 0.4)
+scene.add(emergency)
+const emergency2 = new THREE.PointLight(0x9ae8ff, 4.2, 16, 1.4)
+emergency2.position.set(0, C.FLOOR_H * 2 + 2.2, -C.WELL_D / 2 + 0.6)
+scene.add(emergency2)
+const emergency3 = new THREE.PointLight(0x9ae8ff, 4.2, 16, 1.4)
+emergency3.position.set(0, C.FLOOR_H * 4 + 2.2, C.WELL_D / 2 - 0.6)
+scene.add(emergency3)
+const exitLight = new THREE.PointLight(0x3dff8a, 4.0, 12, 1.6)
+exitLight.position.set(0, C.ROOF_Y + 1.8, -C.WELL_D / 2 + 1)
+scene.add(exitLight)
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
@@ -40,41 +51,76 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
 
-// ---------- 关卡与玩家 ----------
 const level = buildLevel(scene)
-const player = createPlayerState(0, 0, level.startZ)
-const panda = createPandaMesh()
-scene.add(panda.group)
+const lava = createLava(scene, {
+  x: 0,
+  z: C.LOBBY_EXT / 2,
+  w: C.WELL_W - 0.15,
+  d: C.WELL_D + C.LOBBY_EXT - 0.15,
+})
 
-let respawn = { pos: new THREE.Vector3(0, 0, level.startZ), name: '天安门广场' }
-let coinCount = 0
-let phase = 'ready' // ready → play → win
+const players = []
+const meshes = []
+
+function spawnRoster(count) {
+  while (players.length) {
+    const m = meshes.pop()
+    if (m) scene.remove(m.group)
+    players.pop()
+  }
+  const n = Math.max(1, Math.min(8, count))
+  for (let i = 0; i < n; i++) {
+    const s = level.spawns[i]
+    const p = createPlayerState(s.x, s.y, s.z, i)
+    p.cpu = i > 0
+    p.wp = 0
+    players.push(p)
+    const mesh = createRunnerMesh(i)
+    scene.add(mesh.group)
+    meshes.push(mesh)
+  }
+}
+spawnRoster(1)
+
+let phase = 'ready'
 let startT = 0
+let countdownLeft = COUNTDOWN
 let winTime = null
+let frames = 0
 
-applyPaperEdges(scene)
-
-// ---------- 输入 ----------
 const keys = new Set()
 let jumpPressed = false
-let anyKeyHook = null
+let camYaw = Math.PI
+let camPitch = -0.22
+const mouseSens = 0.0022
+
+function initPointerLock() {
+  renderer.domElement.addEventListener('click', () => {
+    if (phase === 'ready') return
+    renderer.domElement.requestPointerLock?.()
+  })
+  document.addEventListener('mousemove', (e) => {
+    if (document.pointerLockElement !== renderer.domElement) return
+    camYaw -= e.movementX * mouseSens
+    camPitch -= e.movementY * mouseSens
+    camPitch = Math.max(-1.15, Math.min(0.48, camPitch))
+  })
+}
+initPointerLock()
+
 window.addEventListener('keydown', (e) => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault()
   if (e.repeat) return
   keys.add(e.code)
   initAudio()
-  if (anyKeyHook) { const h = anyKeyHook; anyKeyHook = null; h() }
   if (e.code === 'Space') jumpPressed = true
   if (e.code === 'KeyR') {
-    if (phase === 'win') location.reload()
-    else doRespawn(false)
+    if (phase === 'win' || phase === 'dead') restartMatch(players.length)
   }
 })
 window.addEventListener('keyup', (e) => keys.delete(e.code))
 
-let camYaw = Math.PI // 朝 -Z(向北)
-
-function readInput() {
+function readHumanInput() {
   const f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0)
   const r = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0)
   const fx = Math.sin(camYaw), fz = Math.cos(camYaw)
@@ -88,33 +134,62 @@ function readInput() {
   return { x, z, jumpPressed: jp }
 }
 
-// 测试钩子:无头测试可注入输入/传送/读状态
+function padInput() {
+  const pads = navigator.getGamepads?.() || []
+  const g = pads[0]
+  if (!g) return null
+  const ax = Math.abs(g.axes[0]) > 0.18 ? g.axes[0] : 0
+  const az = Math.abs(g.axes[1]) > 0.18 ? g.axes[1] : 0
+  const fx = Math.sin(camYaw), fz = Math.cos(camYaw)
+  const rx = Math.sin(camYaw - Math.PI / 2), rz = Math.cos(camYaw - Math.PI / 2)
+  let x = fx * -az + rx * ax
+  let z = fz * -az + rz * ax
+  const len = Math.hypot(x, z)
+  if (len > 1) { x /= len; z /= len }
+  const jump = g.buttons[0]?.pressed || g.buttons[1]?.pressed
+  return { x, z, jumpPressed: jump && !g._jumpHeld, _pad: g }
+}
+
 window.__game = {
   ready: false,
-  input: null, // {x,z,jumpPressed} 覆盖键盘
-  teleport(x, y, z) {
-    player.pos.set(x, y, z)
-    player.vx = player.vy = player.vz = 0
+  input: null,
+  teleport(x, y, z, slot = 0) {
+    const p = players[slot]
+    if (!p) return
+    p.pos.set(x, y, z)
+    p.vx = p.vy = p.vz = 0
   },
-  start() { if (anyKeyHook) { const h = anyKeyHook; anyKeyHook = null; h() } },
+  start(opts = {}) {
+    const n = opts.players ?? 1
+    beginMatch(n, opts)
+  },
+  setLava(y) { level.lavaY = y },
+  ignite() { igniteLobby(level) },
   state() {
+    const p = players[0]
     return {
-      phase, coinCount,
-      pos: { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2) },
-      grounded: player.grounded,
-      checkpoint: respawn.name,
+      phase,
+      pos: p ? { x: +p.pos.x.toFixed(2), y: +p.pos.y.toFixed(2), z: +p.pos.z.toFixed(2) } : null,
+      grounded: p ? p.grounded : false,
+      alive: p ? p.alive : false,
+      lavaY: +level.lavaY.toFixed(2),
+      floor: p ? floorIndex(p.pos.y) : 1,
+      maxY: p ? +p.maxY.toFixed(2) : 0,
+      countdown: +countdownLeft.toFixed(2),
+      playerCount: players.length,
+      crumbleActive: level.crumbles[0] ? level.crumbles[0].active !== false : null,
       frames,
+      test: level.test,
     }
   },
 }
 
-// ---------- 音效 ----------
 let audio = null
 function initAudio() {
   if (audio) return
-  try { audio = new (window.AudioContext || window.webkitAudioContext)() } catch { /* 无声环境 */ }
+  try { audio = new (window.AudioContext || window.webkitAudioContext)() } catch { /* silent */ }
 }
-function beep(freq, dur = 0.15, vol = 0.18, type = 'square') {
+function beep(freq, dur = 0.15, vol = 0.16, type = 'square') {
   if (!audio) return
   const o = audio.createOscillator()
   o.type = type
@@ -127,25 +202,26 @@ function beep(freq, dur = 0.15, vol = 0.18, type = 'square') {
   o.stop(audio.currentTime + dur)
 }
 const sfx = {
-  jump: () => beep(440, 0.12, 0.12, 'triangle'),
-  double: () => beep(620, 0.12, 0.12, 'triangle'),
-  coin: () => { beep(988, 0.08, 0.14); setTimeout(() => beep(1319, 0.13, 0.14), 60) },
-  checkpoint: () => { beep(523, 0.1, 0.15); setTimeout(() => beep(784, 0.18, 0.15), 90) },
-  fall: () => beep(180, 0.3, 0.2, 'sawtooth'),
-  win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 0.18), i * 130)),
+  jump: () => beep(420, 0.1, 0.1, 'triangle'),
+  double: () => beep(640, 0.1, 0.1, 'triangle'),
+  tick: () => beep(880, 0.08, 0.12),
+  go: () => { beep(220, 0.4, 0.2, 'sawtooth'); setTimeout(() => beep(330, 0.25, 0.14), 80) },
+  crack: () => beep(140, 0.28, 0.18, 'sawtooth'),
+  die: () => beep(110, 0.45, 0.22, 'sawtooth'),
+  win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 0.16), i * 130)),
 }
 
-// ---------- HUD ----------
 const el = {
-  coins: document.getElementById('coins'),
-  coinsTotal: document.getElementById('coinsTotal'),
-  time: document.getElementById('time'),
-  cpName: document.getElementById('cpName'),
-  toast: document.getElementById('checkpointToast'),
-  bar: document.getElementById('progressBar'),
   overlay: document.getElementById('overlay'),
+  countdown: document.getElementById('countdown'),
+  time: document.getElementById('time'),
+  floor: document.getElementById('floor'),
+  lava: document.getElementById('lavaH'),
+  toast: document.getElementById('toast'),
+  ranks: document.getElementById('ranks'),
+  barYou: document.getElementById('barYou'),
+  barLava: document.getElementById('barLava'),
 }
-el.coinsTotal.textContent = level.coins.length
 
 function fmt(ms) {
   const m = Math.floor(ms / 60000)
@@ -162,161 +238,259 @@ function toast(text) {
   toastTimer = setTimeout(() => { el.toast.style.opacity = 0 }, 1600)
 }
 
-anyKeyHook = () => {
-  phase = 'play'
+function beginMatch(count, opts = {}) {
+  spawnRoster(count)
+  phase = opts.immediate ? 'play' : 'countdown'
   startT = performance.now()
+  countdownLeft = opts.immediate ? 0 : COUNTDOWN
+  winTime = null
+  level.lavaStarted = false
+  level.lavaY = opts.lava ?? -1.1
+  if (level.lobbyFloor) level.lobbyFloor.active = true
+  if (level.wellFloor) level.wellFloor.active = true
+  for (const c of level.crumbles) {
+    c.active = true
+    c.standTime = 0
+    c.shaken = false
+    if (c.mesh) {
+      c.mesh.visible = true
+      c.mesh.rotation.set(0, 0, 0)
+      c.mesh.position.set((c.min.x + c.max.x) / 2, (c.min.y + c.max.y) / 2, (c.min.z + c.max.z) / 2)
+    }
+  }
+  for (const b of level.boxes) {
+    if (!b.home) {
+      b.home = {
+        min: b.min.clone(),
+        max: b.max.clone(),
+        x: b.mesh.position.x,
+        y: b.min.y,
+        z: b.mesh.position.z,
+      }
+    }
+    b.active = true
+    b.vx = b.vy = b.vz = 0
+    b.min.copy(b.home.min)
+    b.max.copy(b.home.max)
+    if (b.mesh) {
+      b.mesh.visible = true
+      b.mesh.position.set((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2)
+    }
+  }
   el.overlay.classList.add('hidden')
+  el.countdown.classList.toggle('hidden', phase !== 'countdown')
+  if (phase === 'play' && (opts.lava === undefined || opts.lava >= 0)) igniteLobby(level)
+  try { renderer.domElement.requestPointerLock?.() } catch { /* headless */ }
 }
 
-function doRespawn(fell) {
-  player.pos.copy(respawn.pos)
-  player.pos.y += 0.1
-  player.vx = player.vy = player.vz = 0
-  if (fell) { sfx.fall(); toast('掉到马路上啦!回到 ' + respawn.name) }
+function restartMatch(count) {
+  beginMatch(count)
 }
 
-function winRace() {
-  phase = 'win'
-  winTime = performance.now() - startT
-  sfx.win()
+function ranking() {
+  return [...players].sort((a, b) => {
+    if (a.finishTime && b.finishTime) return a.finishTime - b.finishTime
+    if (a.finishTime) return -1
+    if (b.finishTime) return 1
+    if (a.alive !== b.alive) return a.alive ? -1 : 1
+    return b.maxY - a.maxY
+  })
+}
+
+function renderRanks() {
+  const rows = ranking().map((p, i) => {
+    const tag = p.finishTime ? '门' : (p.alive ? `${floorIndex(p.pos.y)}F` : '熔')
+    const me = p.slot === 0 ? ' me' : ''
+    return `<div class="rk${me}">${i + 1}. ${cpuName(p.slot)} <span>${tag}</span></div>`
+  })
+  el.ranks.innerHTML = rows.join('')
+}
+
+function kill(p, reason) {
+  if (!p.alive) return
+  p.alive = false
+  p.deadReason = reason
+  p.vx = p.vy = p.vz = 0
+  sfx.die()
+  if (p.slot === 0) toast('被熔岩追上了')
+  maybeEnd()
+}
+
+function markWin(p) {
+  if (p.finishTime) return
+  p.finishTime = performance.now() - startT
+  if (phase !== 'win' && p.slot === 0) {
+    phase = 'win'
+    winTime = p.finishTime
+    sfx.win()
+    showEnd(true)
+  } else if (phase !== 'win') {
+    const humansLeft = players.filter((x) => x.alive && !x.cpu && !x.finishTime)
+    if (!humansLeft.length && players.some((x) => x.finishTime)) {
+      phase = 'win'
+      showEnd(true)
+    }
+  }
+}
+
+function maybeEnd() {
+  if (phase === 'win' || phase === 'ready') return
+  const live = players.filter((p) => p.alive && !p.finishTime)
+  if (live.length) return
+  if (players.some((p) => p.finishTime)) {
+    phase = 'win'
+    showEnd(true)
+  } else {
+    phase = 'dead'
+    showEnd(false)
+  }
+}
+
+function showEnd(won) {
+  document.exitPointerLock?.()
+  const you = players[0]
+  const board = ranking().map((p, i) => {
+    const info = p.finishTime ? `抵达 ${fmt(p.finishTime)}` : `${floorIndex(p.maxY)}F · 高度 ${p.maxY.toFixed(1)}m`
+    return `${i + 1}. ${cpuName(p.slot)} — ${info}`
+  }).join('<br>')
   el.overlay.classList.remove('hidden')
-  el.overlay.innerHTML = `
-    <h1>🏅 跳进鸟巢!</h1>
-    <div class="sub">
-      用时 ${fmt(winTime)}<br>
-      金币 ${coinCount} / ${level.coins.length}
-    </div>
-    <p class="blink">按 R 再跑一次</p>`
+  el.countdown.classList.add('hidden')
+  el.overlay.innerHTML = won
+    ? `<h1>安全门已到</h1><div class="sub">用时 ${fmt(winTime || you?.finishTime || 0)}<br>${board}</div><p class="blink">按 R 再逃一次</p>`
+    : `<h1>熔岩追上了</h1><div class="sub">爬到 ${floorIndex(you?.maxY || 0)}F · 高度 ${(you?.maxY || 0).toFixed(1)}m<br>${board}</div><p class="blink">按 R 再逃一次</p>`
 }
 
-// ---------- 主循环 ----------
+document.getElementById('btns')?.addEventListener('click', (e) => {
+  const n = Number(e.target?.dataset?.n)
+  if (n) {
+    initAudio()
+    beginMatch(n)
+  }
+})
+
 let lastT = performance.now()
 let acc = 0
-let frames = 0
-const camPos = new THREE.Vector3(0, 6, level.startZ + 10)
+const camPos = new THREE.Vector3(0, 2.4, C.WELL_D / 2 + 6)
 const camLook = new THREE.Vector3()
+let lastTick = 6
+let lastCrack = 0
 
 function frame(now) {
   requestAnimationFrame(frame)
   frames++
-  const dt = Math.min((now - lastT) / 1000, 0.05)
+  const dt = Math.min((now - lastT) / 1000, 0.25)
   lastT = now
 
-  // 相机旋转
-  if (keys.has('KeyQ')) camYaw += 1.8 * dt
-  if (keys.has('KeyE')) camYaw -= 1.8 * dt
+  emergency.intensity = 5.2 + Math.sin(now * 0.012) * 0.6 + (Math.random() < 0.008 ? -1.8 : 0)
 
-  // 移动平台
-  updateMovers(level.movers, now / 1000)
-
-  if (phase === 'play' || phase === 'win') {
-    let input
-    if (phase !== 'play') {
-      input = { x: 0, z: 0, jumpPressed: false }
-    } else if (window.__game.input) {
-      input = { ...window.__game.input }
-      window.__game.input.jumpPressed = false // 单次消费
-    } else {
-      input = readInput()
+  if (phase === 'countdown') {
+    countdownLeft = Math.max(0, COUNTDOWN - (now - startT) / 1000)
+    const sec = Math.ceil(countdownLeft)
+    el.countdown.textContent = sec > 0 ? String(sec) : '逃!'
+    if (sec !== lastTick && sec > 0) { sfx.tick(); lastTick = sec }
+    if (countdownLeft <= 0) {
+      phase = 'play'
+      igniteLobby(level)
+      sfx.go()
+      toast('一楼已是熔岩')
+      el.countdown.classList.add('hidden')
     }
+  }
+
+  if (phase === 'play' && level.lavaStarted) {
+    level.lavaY += (LAVA_SPEED + Math.max(0, (now - startT) / 1000 - COUNTDOWN) * 0.003) * dt
+    if (level.lavaY > C.ROOF_Y + 0.6) level.lavaY = C.ROOF_Y + 0.6
+  }
+
+  if (phase === 'countdown' || phase === 'play') {
+    const human = window.__game.input
+      ? { ...window.__game.input, jumpPressed: window.__game.input.jumpPressed }
+      : readHumanInput()
+    if (window.__game.input) window.__game.input.jumpPressed = false
+
+    const extraPad = players.length > 1 && !players[1].cpu ? padInput() : null
+
     acc += dt
     while (acc >= PHYS_DT) {
       acc -= PHYS_DT
-      const wasCanDouble = player.canDouble
-      stepPlayer(player, input, PHYS_DT, level.colliders)
-      if (player.justJumped) (wasCanDouble && !player.canDouble ? sfx.double : sfx.jump)()
-      input = { ...input, jumpPressed: false } // 跳跃只作用于第一个物理子步
+      for (let i = 0; i < players.length; i++) {
+        const p = players[i]
+        if (!p.alive) continue
+        let input
+        if (i === 0) input = human
+        else if (i === 1 && extraPad) input = extraPad
+        else input = stepCpu(p, PHYS_DT, level.waypoints)
+        const wasCanDouble = p.canDouble
+        stepPlayer(p, input, PHYS_DT, level.colliders)
+        if (p.justJumped && i === 0) (wasCanDouble && !p.canDouble ? sfx.double : sfx.jump)()
+      }
+      human.jumpPressed = false
+      updateCrumbles(level, players, PHYS_DT)
+      updateBoxes(level, PHYS_DT)
     }
-    // 站在移动平台上跟着走
-    const mv = level.movers.find((m) => m.c === player.groundC)
-    if (mv) player.pos.x += mv.delta.x
 
-    // 掉到马路上(过了广场线)→ 回检查点
-    if (phase === 'play' && player.grounded && player.pos.y < 0.05 && player.pos.z < level.safeGroundZ) {
-      doRespawn(true)
-    }
-
-    // 金币
-    for (const c of level.coins) {
-      if (c.taken) continue
-      const dx = c.mesh.position.x - player.pos.x
-      const dy = c.mesh.position.y - (player.pos.y + 0.8)
-      const dz = c.mesh.position.z - player.pos.z
-      if (dx * dx + dz * dz < 1.4 * 1.4 && Math.abs(dy) < 1.6) {
-        c.taken = true
-        c.mesh.visible = false
-        coinCount++
-        el.coins.textContent = coinCount
-        sfx.coin()
+    for (const p of players) {
+      if (!p.alive) continue
+      if (level.lavaStarted && p.pos.y < level.lavaY - 0.02) kill(p, 'lava')
+      if (p.pos.y < -4) kill(p, 'fall')
+      if (phase === 'play' || phase === 'countdown') {
+        const g = level.goal
+        const dx = p.pos.x - g.pos.x
+        const dz = p.pos.z - g.pos.z
+        if (dx * dx + dz * dz < g.radius * g.radius && Math.abs(p.pos.y - g.pos.y) < 2.2) markWin(p)
       }
     }
-    // 检查点
-    for (const cp of level.checkpoints) {
-      if (cp.active) continue
-      const dx = cp.pos.x - player.pos.x
-      const dz = cp.pos.z - player.pos.z
-      if (dx * dx + dz * dz < cp.radius * cp.radius && Math.abs(cp.pos.y - player.pos.y) < 3) {
-        cp.active = true
-        cp.mesh.material = cp.mesh.material.clone()
-        cp.mesh.material.emissive = new THREE.Color(0xdd2200)
-        respawn = { pos: cp.pos.clone(), name: cp.name }
-        el.cpName.textContent = cp.name
-        toast('🚩 ' + cp.name)
-        sfx.checkpoint()
+
+    for (const c of level.crumbles) {
+      if (c.active === false && c.standTime >= 1.2 && now - lastCrack > 200) {
+        sfx.crack()
+        lastCrack = now
+        c.standTime = 0
       }
     }
-    // 终点
-    if (phase === 'play') {
-      const dg = level.goal.pos.distanceTo(player.pos)
-      if (dg < level.goal.radius) winRace()
-    }
   }
 
-  syncPandaMesh(player, panda, now)
+  for (let i = 0; i < players.length; i++) syncRunnerMesh(players[i], meshes[i], now)
+  syncLava(lava, level.lavaY, now, level.lavaStarted)
 
-  // 场景动画
-  for (const c of level.clouds) {
-    c.position.x += c.userData.speed * dt
-    if (c.position.x > 420) c.position.x = -420
-  }
-  for (const c of level.coins) {
-    if (c.taken) continue
-    c.mesh.rotation.y = now * 0.0035 + c.phase
-    c.mesh.position.y = c.baseY + Math.sin(now * 0.004 + c.phase) * 0.15
-  }
-  for (const p of level.props) {
-    p.rotation.z = Math.sin(now * 0.0012 + p.userData.phase) * 0.05
-  }
-  for (const cp of level.checkpoints) {
-    cp.ring.rotation.z = now * 0.001
-  }
-  level.goal.flag.rotation.y = Math.sin(now * 0.002) * 0.2
-
-  // 相机跟随
+  const focus = players[0]
+  const cy = Math.cos(camPitch), sy = Math.sin(camPitch)
   const fx = Math.sin(camYaw), fz = Math.cos(camYaw)
-  const targetPos = new THREE.Vector3(
-    player.pos.x - fx * 9,
-    player.pos.y + 5.2,
-    player.pos.z - fz * 9
+  let dist = 3.55
+  const targetLook = new THREE.Vector3(focus.pos.x + fx * 1.6, focus.pos.y + 1.15, focus.pos.z + fz * 1.6)
+  let targetPos = new THREE.Vector3(
+    focus.pos.x - fx * cy * dist,
+    focus.pos.y + 1.45 - sy * dist,
+    focus.pos.z - fz * cy * dist
   )
-  const targetLook = new THREE.Vector3(
-    player.pos.x + fx * 3,
-    player.pos.y + 1.4,
-    player.pos.z + fz * 3
-  )
-  camPos.lerp(targetPos, 1 - Math.exp(-7 * dt))
-  camLook.lerp(targetLook, 1 - Math.exp(-10 * dt))
+  const hw = C.WELL_W / 2 - 0.35
+  const z0 = -C.WELL_D / 2 + 0.35
+  const z1 = C.LOBBY_Z1 - 0.35
+  targetPos.x = Math.max(-hw, Math.min(hw, targetPos.x))
+  targetPos.z = Math.max(z0, Math.min(z1, targetPos.z))
+  targetPos.y = Math.max(level.lavaY + 0.6, targetPos.y)
+  camPos.lerp(targetPos, 1 - Math.exp(-8 * dt))
+  camLook.lerp(targetLook, 1 - Math.exp(-11 * dt))
   camera.position.copy(camPos)
   camera.lookAt(camLook)
+  fill.target.position.copy(focus.pos)
+  fill.position.set(focus.pos.x + 3, focus.pos.y + 12, focus.pos.z + 4)
 
-  // 阳光跟随
-  sun.position.set(player.pos.x + 50, 90, player.pos.z + 30)
-  sun.target.position.set(player.pos.x, 0, player.pos.z)
+  const fogBase = 0.012 + Math.max(0, (level.lavaY / C.ROOF_Y)) * 0.014
+  scene.fog.density = fogBase
+  scene.background.lerp(new THREE.Color(level.lavaStarted ? 0x1a0806 : 0x0c0708), 0.05)
 
-  // HUD
-  if (phase === 'play') el.time.textContent = fmt(now - startT)
-  const prog = Math.max(0, Math.min(1, (level.startZ - player.pos.z) / (level.startZ - level.endZ)))
-  el.bar.style.width = (prog * 100).toFixed(1) + '%'
+  if (phase === 'play' || phase === 'countdown') {
+    el.time.textContent = fmt(now - startT)
+    const fl = floorIndex(focus.pos.y)
+    el.floor.textContent = fl > C.FLOORS ? '天台' : `${fl}F`
+    el.lava.textContent = `${Math.max(0, level.lavaY).toFixed(1)}m`
+    const youPct = Math.max(0, Math.min(1, focus.pos.y / C.ROOF_Y))
+    const lavaPct = Math.max(0, Math.min(1, level.lavaY / C.ROOF_Y))
+    el.barYou.style.bottom = (youPct * 100).toFixed(1) + '%'
+    el.barLava.style.height = (lavaPct * 100).toFixed(1) + '%'
+    renderRanks()
+  }
 
   renderer.render(scene, camera)
 }
