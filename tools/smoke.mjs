@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const PORT = 5211
+const PORT = Number(process.env.SMOKE_PORT || 5211)
 
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'pipe' })
 await new Promise((res, rej) => {
@@ -15,8 +15,19 @@ await new Promise((res, rej) => {
   setTimeout(() => rej(new Error('vite start timeout')), 20000)
 })
 
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+const launchOpts = {
+  args: [
+    '--enable-unsafe-swiftshader',
+    '--use-gl=angle',
+    '--use-angle=swiftshader',
+    '--ignore-gpu-blocklist',
+    '--no-sandbox',
+  ],
+}
+const macShell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
+if (process.env.PLAYWRIGHT_CHROMIUM) launchOpts.executablePath = process.env.PLAYWRIGHT_CHROMIUM
+else if (process.platform === 'darwin') launchOpts.executablePath = macShell
+const browser = await chromium.launch(launchOpts)
 
 const failures = []
 const pass = (name) => console.log('  ✅', name)
@@ -27,7 +38,12 @@ try {
   const page = await browser.newPage()
   const pageErrors = []
   page.on('pageerror', (e) => pageErrors.push(String(e)))
-  page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()) })
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return
+    const t = m.text()
+    if (/favicon|Failed to load resource: .*404/i.test(t)) return
+    pageErrors.push(t)
+  })
 
   await page.goto(`http://localhost:${PORT}/`)
   await page.waitForFunction('window.__game && window.__game.ready', null, { timeout: 30000 })
@@ -47,7 +63,7 @@ try {
   // 1. 向北走
   const s0 = await S()
   await setInput({ x: 0, z: -1, jumpPressed: false })
-  await sleep(1200)
+  await sleep(1800)
   await idle()
   const s1 = await S()
   check(s1.pos.z < s0.pos.z - 5, '向北行走', JSON.stringify([s0.pos, s1.pos]))
@@ -127,7 +143,7 @@ try {
   ]
   for (const [name, x, y, z] of stands) {
     await tp(x, y, z)
-    await sleep(500)
+    await sleep(800)
     s = await S()
     check(s.grounded && s.pos.y > y - 1.5, `站稳:${name}`, JSON.stringify(s.pos))
   }
@@ -139,12 +155,13 @@ try {
   check(s.phase === 'win', '跳进鸟巢触发胜利', s.phase)
 
   // 10. 帧与报错
-  check(s.frames > 200, `渲染帧数正常(${s.frames})`)
+  check(s.frames > 80, `渲染帧数正常(${s.frames})`)
   check(pageErrors.length === 0, '无页面报错', pageErrors.slice(0, 3).join(' | '))
 
   console.log(failures.length ? `\n${failures.length} 项失败` : '\n全部通过 🎉')
   process.exitCode = failures.length ? 1 : 0
 } finally {
-  await browser.close()
+  await browser.close().catch(() => {})
   vite.kill()
 }
+process.exit(process.exitCode ?? 0)

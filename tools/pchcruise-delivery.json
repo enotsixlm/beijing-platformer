@@ -1,0 +1,43 @@
+{
+  "to": "vibecrazygaems",
+  "game": {
+    "title": "Fenomeno · Pacific Coast Highway",
+    "url": "https://pchcruise.netlify.app/",
+    "genre": "3D driving / open-highway racer",
+    "pitch": "1:1-scale drive down Highway 1 from San Francisco to San Diego. Twelve legs, named coastal places, drift-to-charge boost, optional 6-car races. Browser only — no download.",
+    "controls": "WASD drive · Space handbrake · C camera · R re-seat · P / Esc pause · on-screen SUN slider for time of day",
+    "route": "San Francisco → Pacifica → Half Moon Bay → Santa Cruz → Big Sur → San Luis Obispo → Santa Barbara → Malibu → Santa Monica → San Diego (627 miles)",
+    "verified": {
+      "title": "Fenomeno · Pacific Coast Highway",
+      "ready": true,
+      "mode": "pch",
+      "leg": "01/12 GOLDEN GATE → PACIFICA",
+      "checkedAt": "2026-08-19T03:17:17Z"
+    }
+  },
+  "portals": {
+    "crazygames": {
+      "submitUrl": "https://developer.crazygames.com/",
+      "engine": "Externally hosted (iframe)",
+      "iframeUrl": "https://pchcruise.netlify.app/",
+      "note": "Portal login is required. This agent cannot finish the upload."
+    },
+    "vibegaming": {
+      "submitUrl": "https://github.com/MaydayV/vibegaming",
+      "method": "PR against src/content/games.ts",
+      "entry": {
+        "slug": "fenomeno-pch",
+        "title": "Fenomeno · Pacific Coast Highway",
+        "tagline": {
+          "en": "1:1-scale Highway 1 from San Francisco to San Diego. Drift to charge, race the field, chase the sun.",
+          "zh": "1:1 比例太平洋一号公路：旧金山开到圣地亚哥。漂移充能、编队竞速、追着太阳跑。"
+        },
+        "url": "https://pchcruise.netlify.app/",
+        "author": "Fenomeno",
+        "tags": ["Racing", "3D", "Driving", "Web"],
+        "createdAt": "2026-08-19"
+      }
+    }
+  },
+  "shareText": "Fenomeno · Pacific Coast Highway — drive Highway 1 from San Francisco to San Diego at 1:1 scale in the browser.\nhttps://pchcruise.netlify.app/\nWASD drive · Space handbrake · C camera · P pause"
+}
