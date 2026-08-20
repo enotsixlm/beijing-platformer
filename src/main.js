@@ -3,7 +3,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
-import { PLAYER, WEAPONS, WORLD } from './config.js'
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
+import { LOOK, PLAYER, WORLD } from './config.js'
 import { createWorld, fillArena, createVoxelView, rayVoxel } from './voxel.js'
 import { createCowboy, createPlayerState, lookDir, rightDir, stepPlayer, syncCowboy } from './player.js'
 import { createDebris, createPuffs } from './debris.js'
@@ -24,20 +25,20 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 0.92
+renderer.toneMappingExposure = LOOK.exposure
 renderer.domElement.id = 'game'
 document.body.prepend(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x05080c)
-scene.fog = new THREE.Fog(0x05080c, 28, 78)
+scene.background = new THREE.Color(LOOK.bg)
+scene.fog = new THREE.Fog(LOOK.bg, LOOK.fogNear, LOOK.fogFar)
 
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.08, 200)
+const camera = new THREE.PerspectiveCamera(LOOK.fov, innerWidth / innerHeight, 0.08, 200)
 
-const hemi = new THREE.HemisphereLight(0x4aa0c8, 0x0a1016, 0.55)
+const hemi = new THREE.HemisphereLight(0x1e5a72, 0x05080c, 0.32)
 scene.add(hemi)
-const key = new THREE.DirectionalLight(0xcfe8ff, 0.55)
-key.position.set(18, 28, 12)
+const key = new THREE.DirectionalLight(0xc8dcea, 0.28)
+key.position.set(14, 26, 10)
 key.castShadow = true
 key.shadow.mapSize.set(1024, 1024)
 key.shadow.camera.near = 2
@@ -46,16 +47,49 @@ key.shadow.camera.left = key.shadow.camera.bottom = -30
 key.shadow.camera.right = key.shadow.camera.top = 30
 scene.add(key)
 
-const fill = new THREE.PointLight(0x2ee8ff, 1.25, 46, 1.6)
-fill.position.set(0, 3.2, 4)
+const fill = new THREE.PointLight(0x2ee8ff, 1.85, 52, 1.5)
+fill.position.set(0, 3.4, 3)
 scene.add(fill)
+
+const VignetteShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    offset: { value: 1.05 },
+    darkness: { value: 1.22 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float offset;
+    uniform float darkness;
+    varying vec2 vUv;
+    void main() {
+      vec4 texel = texture2D(tDiffuse, vUv);
+      vec2 uv = (vUv - 0.5) * vec2(offset);
+      float vig = clamp(pow(1.0 - dot(uv, uv), darkness), 0.0, 1.0);
+      gl_FragColor = vec4(texel.rgb * vig, texel.a);
+    }
+  `,
+}
 
 let composer = null
 try {
   composer = new EffectComposer(renderer)
   composer.addPass(new RenderPass(scene, camera))
-  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.38, 0.72)
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(innerWidth, innerHeight),
+    LOOK.bloomStrength,
+    LOOK.bloomRadius,
+    LOOK.bloomThreshold,
+  )
   composer.addPass(bloom)
+  composer.addPass(new ShaderPass(VignetteShader))
   composer.addPass(new OutputPass())
 } catch {
   composer = null
@@ -76,9 +110,9 @@ voxels.rebuild(world)
 const player = createPlayerState()
 const cowboy = createCowboy()
 scene.add(cowboy.root)
-const rim = new THREE.PointLight(0xffd8a8, 1.35, 8, 2)
+const rim = new THREE.PointLight(0xffc080, 1.15, 7, 2)
 cowboy.root.add(rim)
-rim.position.set(0.6, 1.6, 1.1)
+rim.position.set(0.45, 1.45, 0.85)
 
 const debris = createDebris(scene)
 const puffs = createPuffs(scene)
@@ -244,19 +278,27 @@ function stepFx(dt) {
   for (let i = tracers.length - 1; i >= 0; i--) {
     const t = tracers[i]
     t.life -= dt
-    t.mesh.material.opacity = Math.max(0, t.life * 12)
+    const k = Math.max(0, t.life / 0.09)
+    if (t.core) {
+      t.core.material.opacity = k
+      t.glow.material.opacity = k * 0.38
+    }
     if (t.life <= 0) {
       scene.remove(t.mesh)
-      t.mesh.geometry.dispose()
+      t.core?.geometry.dispose()
+      t.glow?.geometry.dispose()
+      t.mesh.geometry?.dispose()
       tracers.splice(i, 1)
     }
   }
   for (let i = flashes.length - 1; i >= 0; i--) {
     const f = flashes[i]
     f.life -= dt
-    f.light.intensity = 3.2 * (f.life / 0.05)
+    f.light.intensity = 5.8 * (f.life / 0.055)
+    if (f.corona) f.corona.material.opacity = 0.75 * (f.life / 0.055)
     if (f.life <= 0) {
       scene.remove(f.light); scene.remove(f.flash)
+      if (f.corona) scene.remove(f.corona)
       flashes.splice(i, 1)
     }
   }
@@ -371,7 +413,11 @@ window.__game = {
       mag: currentWeapon(loadout).mag,
       reloading: loadout.reloading,
       carved: combatCtx.carved,
-      dummies: dummies.map((d) => ({ dead: d.dead, left: d.cells.filter((c) => c.alive).length })),
+      dummies: dummies.map((d) => ({
+        dead: d.dead,
+        left: d.cells.filter((c) => c.alive).length,
+        base: d.baseCount,
+      })),
       hp: player.hp,
       yaw: +player.yaw.toFixed(3),
       pitch: +player.pitch.toFixed(3),

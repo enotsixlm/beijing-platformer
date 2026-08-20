@@ -106,7 +106,7 @@ try {
     return { ammo0, ammo: s.ammo, dummies: s.dummies }
   })
   check(afterShoot.ammo < afterShoot.ammo0, 'autogun spends ammo', `${afterShoot.ammo0} -> ${afterShoot.ammo}`)
-  const dummyHit = afterShoot.dummies.some((d) => d.left < 240 || d.dead)
+  const dummyHit = afterShoot.dummies.some((d) => d.left < d.base || d.dead)
   check(dummyHit, 'dummy takes voxel damage', JSON.stringify(afterShoot.dummies))
 
   const afterRocket = await page.evaluate(() => {

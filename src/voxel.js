@@ -51,25 +51,33 @@ export function fillArena(world) {
       world.set(x, 0, z, MAT.FLOOR)
       const edge = x < 2 || z < 2 || x > sx - 3 || z > sz - 3
       if (edge) {
-        for (let y = 1; y <= 4; y++) world.set(x, y, z, MAT.WALL)
+        for (let y = 1; y <= 9; y++) world.set(x, y, z, MAT.WALL)
       }
     }
   }
   // back wall inner slab — mostly solid so small guns spark without carving
-  for (let x = 8; x < sx - 8; x++) {
-    for (let y = 1; y <= 8; y++) {
+  for (let x = 7; x < sx - 7; x++) {
+    for (let y = 1; y <= 11; y++) {
       world.set(x, y, 3, MAT.SOLID)
       world.set(x, y, 2, MAT.SOLID)
     }
   }
-  // cyan frame on the back wall
-  for (let x = 10; x < sx - 10; x++) {
-    world.set(x, 2, 4, MAT.NEON)
-    world.set(x, 8, 4, MAT.NEON)
+  // thick cyan frame on the back wall
+  for (let x = 9; x < sx - 9; x++) {
+    for (let z = 4; z <= 5; z++) {
+      world.set(x, 1, z, MAT.NEON)
+      world.set(x, 2, z, MAT.NEON)
+      world.set(x, 9, z, MAT.NEON)
+      world.set(x, 10, z, MAT.NEON)
+    }
   }
-  for (let y = 2; y <= 8; y++) {
-    world.set(10, y, 4, MAT.NEON)
-    world.set(sx - 11, y, 4, MAT.NEON)
+  for (let y = 1; y <= 10; y++) {
+    for (let z = 4; z <= 5; z++) {
+      world.set(9, y, z, MAT.NEON)
+      world.set(10, y, z, MAT.NEON)
+      world.set(sx - 10, y, z, MAT.NEON)
+      world.set(sx - 11, y, z, MAT.NEON)
+    }
   }
   // destructible side bunker on the right
   for (let z = 16; z < 26; z++) {
@@ -182,37 +190,73 @@ function greedy(world, matId) {
   return bucket
 }
 
-function makeTexture(fill, line, lineW = 3) {
-  const c = document.createElement('canvas')
-  c.width = c.height = 64
-  const g = c.getContext('2d')
-  g.fillStyle = fill
-  g.fillRect(0, 0, 64, 64)
-  g.strokeStyle = line
-  g.lineWidth = lineW
-  g.strokeRect(1, 1, 62, 62)
-  const tex = new THREE.CanvasTexture(c)
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  tex.magFilter = THREE.NearestFilter
-  tex.minFilter = THREE.NearestFilter
-  tex.colorSpace = THREE.SRGBColorSpace
-  return tex
+const FLOOR_VERT = `
+varying vec3 vWorld;
+varying vec3 vNormal;
+#include <common>
+#include <fog_pars_vertex>
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vWorld = w.xyz;
+  vec4 mvPosition = viewMatrix * w;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}
+`
+
+const FLOOR_FRAG = `
+uniform vec3 uColor;
+uniform vec3 uLine;
+uniform float uCell;
+varying vec3 vWorld;
+varying vec3 vNormal;
+#include <common>
+#include <fog_pars_fragment>
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 col = uColor * (0.42 + 0.58 * max(n.y, 0.0));
+  if (n.y > 0.35) {
+    vec2 p = vWorld.xz / uCell;
+    vec2 fw = max(fwidth(p), vec2(1e-6));
+    vec2 g = abs(fract(p - 0.5) - 0.5) / fw;
+    float line = 1.0 - min(min(g.x, g.y), 1.0);
+    vec2 p4 = vWorld.xz / (uCell * 4.0);
+    vec2 fw4 = max(fwidth(p4), vec2(1e-6));
+    vec2 g4 = abs(fract(p4 - 0.5) - 0.5) / fw4;
+    float major = 1.0 - min(min(g4.x, g4.y), 1.0);
+    float glow = pow(clamp(line, 0.0, 1.0), 0.38);
+    float glowM = pow(clamp(major, 0.0, 1.0), 0.32);
+    col += uLine * (glow * 2.05 + glowM * 0.72);
+    col += vec3(0.02, 0.07, 0.08);
+  }
+  gl_FragColor = vec4(col, 1.0);
+  #include <fog_fragment>
+}
+`
+
+function makeFloorMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([
+      THREE.UniformsLib.fog,
+      {
+        uColor: { value: new THREE.Color(0x041a20) },
+        uLine: { value: new THREE.Color(0x3af8ff) },
+        uCell: { value: 1 },
+      },
+    ]),
+    vertexShader: FLOOR_VERT,
+    fragmentShader: FLOOR_FRAG,
+    fog: true,
+  })
 }
 
 export function createVoxelView(scene) {
-  const floorTex = makeTexture('#0b1520', '#2ee8ff', 4)
-  const wallTex = makeTexture('#2a3138', '#3d4650', 2)
-  const solidTex = makeTexture('#161b22', '#232a32', 2)
-
   const mats = {
-    [MAT.FLOOR]: new THREE.MeshLambertMaterial({
-      map: floorTex, emissive: 0x0b3a44, emissiveMap: floorTex, emissiveIntensity: 0.85,
-    }),
-    [MAT.WALL]: new THREE.MeshLambertMaterial({ map: wallTex, color: 0x9aa3ad }),
-    [MAT.SOLID]: new THREE.MeshLambertMaterial({ map: solidTex, color: 0x7d868f }),
-    [MAT.NEON]: new THREE.MeshLambertMaterial({
-      color: 0x2ee8ff, emissive: 0x2ee8ff, emissiveIntensity: 1.4,
-    }),
+    [MAT.FLOOR]: makeFloorMaterial(),
+    [MAT.WALL]: new THREE.MeshLambertMaterial({ color: 0x14181e }),
+    [MAT.SOLID]: new THREE.MeshLambertMaterial({ color: 0x0c1014 }),
+    [MAT.NEON]: new THREE.MeshBasicMaterial({ color: 0x5effff }),
   }
 
   const group = new THREE.Group()

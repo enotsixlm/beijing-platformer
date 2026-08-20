@@ -13,35 +13,56 @@ function mat(color, emissive = 0x000000, ei = 0) {
   return new THREE.MeshLambertMaterial({ color, emissive, emissiveIntensity: ei })
 }
 
+function glowMat(color) {
+  return new THREE.MeshBasicMaterial({ color })
+}
+
 export function createCowboy() {
   const root = new THREE.Group()
   const L = new THREE.Group()
   root.add(L)
 
   const leather = mat(0xa45a2a)
-  const leatherD = mat(0x7a3e18)
-  const denim = mat(0x3f74b0)
+  const leatherD = mat(0x6e3514)
+  const denim = mat(0x3a6ea8)
   const skin = mat(0xefc39a)
-  const boot = mat(0x5a3218)
+  const boot = mat(0x4e2a12)
   const pack = mat(0x8a9098)
   const hat = mat(0x8a4a1c)
+  const orange = glowMat(0xff7a18)
+  const buckle = glowMat(0xffc14a)
 
-  box(L, -0.16, 0.12, 0.04, 0.22, 0.24, 0.34, boot)
-  box(L, 0.16, 0.12, 0.04, 0.22, 0.24, 0.34, boot)
-  box(L, -0.16, 0.46, 0.0, 0.24, 0.48, 0.28, denim)
-  box(L, 0.16, 0.46, 0.0, 0.24, 0.48, 0.28, denim)
-  box(L, 0, 1.02, 0, 0.62, 0.62, 0.36, leather)
-  box(L, 0, 0.74, 0.02, 0.56, 0.16, 0.38, leatherD)
-  const armL = box(L, -0.46, 1.00, 0.04, 0.2, 0.56, 0.2, leather)
-  const armR = box(L, 0.46, 1.00, 0.04, 0.2, 0.56, 0.2, leather)
-  box(L, 0, 1.42, 0.02, 0.36, 0.22, 0.28, pack)
-  box(L, 0, 1.58, -0.16, 0.42, 0.42, 0.36, skin)
-  box(L, 0, 1.86, -0.16, 0.46, 0.18, 0.46, hat)
-  box(L, 0, 1.78, -0.16, 0.86, 0.08, 0.86, hat)
-  box(L, 0, 1.22, 0.22, 0.5, 0.42, 0.18, pack)
+  const V = 0.085
+  const vox = (px, py, pz, w, h, d, m) => box(L, px * V, py * V, pz * V, w * V, h * V, d * V, m)
+
+  // boots + shins
+  vox(-2.2, 1.4, 1.2, 3.2, 2.8, 4.2, boot)
+  vox(2.2, 1.4, 1.2, 3.2, 2.8, 4.2, boot)
+  vox(-2.2, 5.2, 0.2, 3.0, 5.2, 3.2, denim)
+  vox(2.2, 5.2, 0.2, 3.0, 5.2, 3.2, denim)
+  vox(0, 8.4, 0.1, 7.2, 2.2, 3.8, denim)
+  vox(0, 9.6, 0.15, 7.4, 1.1, 4.0, leatherD)
+  vox(0, 9.6, 2.1, 1.4, 0.7, 0.6, buckle)
+  // jacket
+  vox(0, 13.4, 0.0, 7.2, 6.8, 4.0, leather)
+  vox(0, 16.6, 0.6, 5.2, 1.2, 3.2, leatherD)
+  // arms
+  const armL = vox(-5.4, 13.2, 0.2, 2.4, 6.6, 2.4, leather)
+  const armR = vox(5.4, 13.2, 0.2, 2.4, 6.6, 2.4, leather)
+  vox(-5.4, 9.6, 0.2, 2.2, 1.6, 2.2, skin)
+  vox(5.4, 9.6, 0.2, 2.2, 1.6, 2.2, skin)
+  // pack + orange accents
+  vox(0, 13.6, 2.6, 5.2, 5.6, 2.2, pack)
+  vox(0, 16.2, 3.6, 3.6, 0.8, 0.6, orange)
+  vox(-1.6, 13.2, 3.6, 0.7, 2.4, 0.5, orange)
+  vox(1.6, 13.2, 3.6, 0.7, 2.4, 0.5, orange)
+  // head + hat
+  vox(0, 19.2, -1.4, 4.6, 4.6, 4.6, skin)
+  vox(0, 22.0, -1.4, 5.0, 2.2, 5.0, hat)
+  vox(0, 20.9, -1.4, 9.2, 0.9, 9.2, hat)
 
   const weaponRoot = new THREE.Group()
-  weaponRoot.position.set(0.42, 1.12, -0.28)
+  weaponRoot.position.set(0.48, 1.05, -0.2)
   L.add(weaponRoot)
 
   const guns = {
@@ -63,8 +84,8 @@ function makeGun(kind) {
   const g = new THREE.Group()
   const dark = mat(0x2a2e33)
   const mid = mat(0x4a5158)
-  const acc = mat(0xff7a18, 0xff6a10, 0.35)
-  const glow = mat(0xffc14a, 0xff9a1a, 1.2)
+  const acc = glowMat(0xff7a18)
+  const glow = glowMat(0xffc14a)
   if (kind === 'cannon') {
     box(g, 0, 0, -0.22, 0.22, 0.28, 0.5, dark)
     box(g, 0, 0.02, -0.62, 0.16, 0.16, 0.38, mid)
@@ -219,7 +240,8 @@ function resolveVoxels(p, solidAt) {
 export function syncCowboy(p, mesh, now, moving) {
   mesh.root.position.copy(p.pos)
   mesh.root.rotation.y = p.yaw
-  const bob = moving && p.grounded ? Math.sin(now * 0.012) * 0.035 : 0
+  const bob = moving && p.grounded ? Math.sin(now * 0.012) * 0.03 : 0
   mesh.body.position.y = bob
-  mesh.body.rotation.x = p.dashT > 0 ? 0.12 : 0
+  mesh.body.rotation.x = 0.1 + (p.dashT > 0 ? 0.14 : 0)
+  mesh.weaponRoot.rotation.x = -p.pitch * 0.42
 }

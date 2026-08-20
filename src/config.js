@@ -15,6 +15,17 @@ export const MAT = {
   NEON: 4,
 }
 
+export const LOOK = {
+  bg: 0x020508,
+  fogNear: 16,
+  fogFar: 52,
+  bloomStrength: 1.22,
+  bloomRadius: 0.54,
+  bloomThreshold: 0.14,
+  exposure: 0.82,
+  fov: 58,
+}
+
 export const PLAYER = {
   runSpeed: 7.4,
   accel: 28,
@@ -28,9 +39,9 @@ export const PLAYER = {
   halfW: 0.38,
   height: 1.62,
   eye: 1.42,
-  camDist: 4.15,
-  camShoulder: 0.62,
-  camHeight: 1.48,
+  camDist: 3.38,
+  camShoulder: 0.98,
+  camHeight: 1.52,
   mouseSens: 0.00215,
 }
 
@@ -64,7 +75,7 @@ export const WEAPONS = [
     carve: 0,
     dummyRadius: 0.42,
     auto: true,
-    tracer: 0xff2a22,
+    tracer: 0xff3a18,
     crosshair: 'auto',
     color: 0xff3a2a,
   },
@@ -106,5 +117,6 @@ export const WEAPONS = [
 export const DUMMY = {
   respawn: 6.2,
   flashMs: 90,
-  voxel: 0.28,
+  voxel: 0.2,
+  depth: 1,
 }

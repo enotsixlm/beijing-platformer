@@ -4,7 +4,7 @@ const MAX = 420
 
 export function createDebris(scene) {
   const geo = new THREE.BoxGeometry(1, 1, 1)
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true })
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true })
   const mesh = new THREE.InstancedMesh(geo, mat, MAX)
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
   mesh.castShadow = true

@@ -2,30 +2,26 @@ import * as THREE from 'three'
 import { DUMMY } from './config.js'
 
 const SIL = [
-  '  ###  ',
-  ' ##### ',
-  ' ## ## ',
-  ' ##### ',
-  ' ##### ',
-  '##   ##',
-  ' ##### ',
-  ' ##### ',
-  ' ##### ',
-  ' ##### ',
-  ' ## ## ',
-  ' ## ## ',
-  ' ## ## ',
-  '#     #',
+  '  ####  ',
+  ' ###### ',
+  ' ###### ',
+  '  ####  ',
+  '   ##   ',
+  ' ###### ',
+  '########',
+  '########',
+  ' ###### ',
+  '  ####  ',
+  '  ####  ',
+  '  #  #  ',
+  '  #  #  ',
+  ' ##  ## ',
 ]
 
 const COLORS = [0x3cf0ff, 0xff3ec8, 0xffe14a, 0x5ee6ff]
 
 function makeMat(hex) {
-  return new THREE.MeshLambertMaterial({
-    color: hex,
-    emissive: hex,
-    emissiveIntensity: 0.35,
-  })
+  return new THREE.MeshBasicMaterial({ color: hex })
 }
 
 export function createDummies(scene) {
@@ -45,26 +41,42 @@ function makeDummy(scene, x, z, hex) {
   scene.add(group)
 
   const stand = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.18, 0.22, 1.0, 8),
-    new THREE.MeshLambertMaterial({ color: 0x1a1e24 }),
+    new THREE.BoxGeometry(0.12, 1.08, 0.12),
+    new THREE.MeshLambertMaterial({ color: 0x12161c }),
   )
-  stand.position.y = 0.5
+  stand.position.y = 0.54
   group.add(stand)
 
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(0.62, 28),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.16, side: THREE.DoubleSide }),
+  )
+  disc.rotation.x = -Math.PI / 2
+  disc.position.y = 0.03
+  group.add(disc)
+
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.55, 0.78, 24),
-    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.7, side: THREE.DoubleSide }),
+    new THREE.RingGeometry(0.68, 0.92, 32),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.95, side: THREE.DoubleSide }),
   )
   ring.rotation.x = -Math.PI / 2
   ring.position.y = 0.04
   group.add(ring)
 
-  const glow = new THREE.PointLight(hex, 1.1, 6, 2)
-  glow.position.y = 1.4
+  const ring2 = new THREE.Mesh(
+    new THREE.RingGeometry(1.02, 1.1, 32),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
+  )
+  ring2.rotation.x = -Math.PI / 2
+  ring2.position.y = 0.045
+  group.add(ring2)
+
+  const glow = new THREE.PointLight(hex, 1.65, 7, 2)
+  glow.position.y = 1.5
   group.add(glow)
 
   const body = new THREE.Group()
-  body.position.y = 1.05
+  body.position.y = 1.12
   group.add(body)
 
   const mat = makeMat(hex)
@@ -72,7 +84,7 @@ function makeDummy(scene, x, z, hex) {
   const vs = DUMMY.voxel
   const colN = SIL[0].length
   const rowN = SIL.length
-  const depth = 4
+  const depth = DUMMY.depth
   for (let row = 0; row < rowN; row++) {
     for (let col = 0; col < colN; col++) {
       if (SIL[row][col] !== '#') continue
@@ -80,7 +92,7 @@ function makeDummy(scene, x, z, hex) {
         const lx = (col - (colN - 1) / 2) * vs
         const ly = (rowN - 1 - row) * vs
         const lz = (d - (depth - 1) / 2) * vs
-        const m = new THREE.Mesh(new THREE.BoxGeometry(vs * 0.94, vs * 0.94, vs * 0.94), mat)
+        const m = new THREE.Mesh(new THREE.BoxGeometry(vs * 0.96, vs * 0.96, vs * 0.7), mat)
         m.position.set(lx, ly, lz)
         m.castShadow = true
         body.add(m)
@@ -102,7 +114,6 @@ export function updateDummies(list, dt) {
   for (const d of list) {
     if (d.flashT > 0) {
       d.flashT -= dt
-      d.mat.emissiveIntensity = d.flashT > 0 ? 2.4 : 0.35
       d.mat.color.setHex(d.flashT > 0 ? 0xffffff : d.hex)
     }
     if (d.dead) {

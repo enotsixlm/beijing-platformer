@@ -114,7 +114,7 @@ function spawnRocket(ctx, origin, aim, w) {
   const dir = aim.clone().normalize()
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(0.22, 0.22, 0.46),
-    new THREE.MeshLambertMaterial({ color: 0xff9a1a, emissive: 0xff6a00, emissiveIntensity: 1.6 }),
+    new THREE.MeshBasicMaterial({ color: 0xff9a1a }),
   )
   mesh.position.copy(origin)
   mesh.lookAt(origin.clone().add(dir))
@@ -187,23 +187,42 @@ function spawnCarveDebris(ctx, removed) {
 }
 
 export function makeTracer(scene, from, to, hex) {
-  const geo = new THREE.BufferGeometry().setFromPoints([from, to])
-  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
-    color: hex, transparent: true, opacity: 0.95,
-  }))
-  scene.add(line)
-  return { mesh: line, life: 0.07 }
+  const dir = new THREE.Vector3().subVectors(to, from)
+  const len = Math.max(0.25, dir.length())
+  const core = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, 0.05, 1),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 1 }),
+  )
+  const glow = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.16, 1),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.38 }),
+  )
+  core.scale.z = len
+  glow.scale.z = len
+  const group = new THREE.Group()
+  group.add(core)
+  group.add(glow)
+  group.position.copy(from).addScaledVector(dir, 0.5)
+  group.lookAt(to)
+  scene.add(group)
+  return { mesh: group, core, glow, life: 0.09 }
 }
 
 export function makeMuzzle(scene, pos) {
-  const light = new THREE.PointLight(0xff9a30, 3.2, 7)
+  const light = new THREE.PointLight(0xff9a30, 5.8, 11)
   light.position.copy(pos)
   scene.add(light)
   const flash = new THREE.Mesh(
-    new THREE.BoxGeometry(0.18, 0.18, 0.18),
+    new THREE.BoxGeometry(0.22, 0.22, 0.38),
     new THREE.MeshBasicMaterial({ color: 0xffe9a0 }),
   )
   flash.position.copy(pos)
   scene.add(flash)
-  return { light, flash, life: 0.05 }
+  const corona = new THREE.Mesh(
+    new THREE.BoxGeometry(0.48, 0.48, 0.14),
+    new THREE.MeshBasicMaterial({ color: 0xff5a18, transparent: true, opacity: 0.75 }),
+  )
+  corona.position.copy(pos)
+  scene.add(corona)
+  return { light, flash, corona, life: 0.055 }
 }
