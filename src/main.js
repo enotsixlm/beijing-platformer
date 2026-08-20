@@ -371,6 +371,8 @@ function frame(now) {
   if (composer) composer.render()
   else renderer.render(scene, camera)
 }
+syncCowboy(player, cowboy, 0, false)
+snapCamera()
 requestAnimationFrame(frame)
 
 window.__game = {

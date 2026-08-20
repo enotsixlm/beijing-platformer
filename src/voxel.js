@@ -217,18 +217,13 @@ void main() {
   vec3 n = normalize(vNormal);
   vec3 col = uColor * (0.42 + 0.58 * max(n.y, 0.0));
   if (n.y > 0.35) {
-    vec2 p = vWorld.xz / uCell;
-    vec2 fw = max(fwidth(p), vec2(1e-6));
-    vec2 g = abs(fract(p - 0.5) - 0.5) / fw;
-    float line = 1.0 - min(min(g.x, g.y), 1.0);
-    vec2 p4 = vWorld.xz / (uCell * 4.0);
-    vec2 fw4 = max(fwidth(p4), vec2(1e-6));
-    vec2 g4 = abs(fract(p4 - 0.5) - 0.5) / fw4;
-    float major = 1.0 - min(min(g4.x, g4.y), 1.0);
-    float glow = pow(clamp(line, 0.0, 1.0), 0.45);
-    float glowM = pow(clamp(major, 0.0, 1.0), 0.4);
-    col += uLine * (glow * 0.95 + glowM * 0.28);
-    col += vec3(0.015, 0.05, 0.055);
+    vec2 p = vWorld.xz;
+    vec2 g = abs(fract(p - 0.5) - 0.5);
+    float line = 1.0 - smoothstep(0.0, 0.032, min(g.x, g.y));
+    vec2 g4 = abs(fract(p / 4.0 - 0.5) - 0.5);
+    float major = 1.0 - smoothstep(0.0, 0.012, min(g4.x, g4.y));
+    col += uLine * (line * 0.85 + major * 0.35);
+    col += vec3(0.02, 0.06, 0.07);
   }
   gl_FragColor = vec4(col, 1.0);
   #include <fog_fragment>
