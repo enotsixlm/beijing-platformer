@@ -1,0 +1,7 @@
+{
+  "enemies": [
+    { "id": "scout", "displayName": "Scout", "color": "#4fc3f7", "maxHp": 50, "moveSpeed": 6, "score": 10 },
+    { "id": "tank", "displayName": "Tank", "color": "#ff8a65", "maxHp": 150, "moveSpeed": 2.2, "score": 25 },
+    { "id": "runner", "displayName": "Runner", "color": "#aed581", "maxHp": 35, "moveSpeed": 9, "score": 15 }
+  ]
+}

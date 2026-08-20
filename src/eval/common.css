@@ -1,0 +1,112 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1020; }
+body { font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #e8eefc; user-select: none; }
+canvas { display: block; }
+
+.back {
+  position: fixed; top: 12px; left: 12px; z-index: 20;
+  color: #dbe7ff; text-decoration: none; font-size: 13px; font-weight: 600;
+  background: rgba(12, 18, 36, 0.78); border: 1px solid rgba(160, 190, 255, 0.28);
+  padding: 6px 10px; border-radius: 8px; pointer-events: auto;
+}
+.back:hover { background: rgba(40, 60, 110, 0.88); }
+
+.hud {
+  position: fixed; z-index: 8; pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+}
+#titlebar {
+  top: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(12, 18, 36, 0.78); border: 1px solid rgba(160, 190, 255, 0.25);
+  border-radius: 12px; padding: 8px 16px; font-weight: 700; font-size: 15px;
+  white-space: nowrap;
+}
+#hintbar {
+  bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(12, 18, 36, 0.72); border-radius: 10px;
+  padding: 6px 14px; font-size: 12px; color: #b9c8ea; max-width: 92vw; text-align: center;
+}
+#stats {
+  top: 56px; left: 12px;
+  background: rgba(12, 18, 36, 0.72); border-radius: 10px;
+  padding: 8px 12px; font-size: 13px; line-height: 1.55; white-space: pre-wrap;
+}
+#toast {
+  top: 56px; left: 50%; transform: translateX(-50%);
+  font-size: 28px; font-weight: 800; opacity: 0; transition: opacity 0.2s;
+}
+#overlay {
+  position: fixed; inset: 0; z-index: 15;
+  display: none; align-items: center; justify-content: center; flex-direction: column;
+  background: rgba(6, 10, 22, 0.55); text-align: center; pointer-events: none;
+}
+#overlay.show { display: flex; }
+#overlay h1 { font-size: 42px; margin-bottom: 8px; }
+#overlay p { color: #c6d4f5; }
+
+.ui-btn, .ui-panel button {
+  pointer-events: auto; cursor: pointer;
+  background: #2d4aa0; color: #fff; border: 0; border-radius: 8px;
+  padding: 8px 12px; font-weight: 700; font-size: 13px;
+}
+.ui-btn:hover, .ui-panel button:hover { background: #3b5cc0; }
+.ui-panel {
+  position: fixed; z-index: 9; pointer-events: auto;
+  background: rgba(12, 18, 36, 0.86); border: 1px solid rgba(160, 190, 255, 0.25);
+  border-radius: 12px; padding: 10px;
+}
+
+/* Hub */
+.hub-body { overflow: auto; background:
+  radial-gradient(1200px 600px at 20% -10%, #1b2a58 0%, transparent 60%),
+  radial-gradient(900px 500px at 100% 10%, #3a1d4a 0%, transparent 55%),
+  #090e1c;
+}
+.hub {
+  max-width: 1180px; margin: 0 auto; padding: 36px 20px 80px;
+}
+.hub header h1 { font-size: 34px; letter-spacing: 0.02em; }
+.hub header p { color: #9eb0d8; margin: 8px 0 24px; }
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;
+}
+.card {
+  display: block; text-decoration: none; color: inherit;
+  background: rgba(16, 24, 48, 0.82); border: 1px solid rgba(150, 180, 255, 0.18);
+  border-radius: 14px; padding: 14px 14px 16px; transition: transform 0.15s, border-color 0.15s;
+}
+.card:hover { transform: translateY(-2px); border-color: #7aa2ff; }
+.card .num { color: #7aa2ff; font-size: 12px; font-weight: 800; }
+.card h2 { font-size: 17px; margin: 4px 0 8px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag {
+  font-size: 11px; color: #c5d4f7; background: rgba(80, 110, 190, 0.28);
+  border-radius: 999px; padding: 2px 8px;
+}
+
+.hand { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.card-tile {
+  width: 110px; min-height: 140px; border-radius: 10px; padding: 10px;
+  background: #1c2748; border: 2px solid #6f8fe0; color: #eef3ff;
+  cursor: pointer; text-align: left; pointer-events: auto;
+}
+.card-tile.off { opacity: 0.35; cursor: not-allowed; }
+.card-tile h3 { font-size: 15px; }
+.card-tile .cost { font-size: 12px; color: #9ecbff; }
+
+.vjoy-base, .vjoy-knob, .vjump {
+  position: fixed; z-index: 12; pointer-events: auto; touch-action: none;
+}
+.vjoy-base {
+  left: 28px; bottom: 28px; width: 140px; height: 140px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.28);
+}
+.vjoy-knob {
+  width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.55);
+  left: 66px; bottom: 66px;
+}
+.vjump {
+  right: 36px; bottom: 42px; width: 92px; height: 92px; border-radius: 50%;
+  background: rgba(90, 140, 255, 0.55); border: 2px solid rgba(255,255,255,0.4);
+  color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 18px;
+}
