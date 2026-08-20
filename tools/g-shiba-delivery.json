@@ -1,0 +1,91 @@
+{
+  "to": "vibacrazygames",
+  "portal": "CrazyGames",
+  "submitUrl": "https://developer.crazygames.com/",
+  "docs": "https://docs.crazygames.com/",
+  "game": {
+    "title": "SHIBA DASH!! お散歩グランプリ",
+    "titleEn": "SHIBA DASH!! Walking Grand Prix",
+    "url": "https://amix-design.com/tl/tool-g-shiba/",
+    "developer": "AMIX / トミナガハルキ",
+    "license": "制作：AMIX｜トミナガハルキ/ライセンス",
+    "genre": "3D auto-runner / leash-physics racer",
+    "pitch": "Your Shiba runs on its own. You only steer. Coins are collected by the owner dragged on the leash, so every corner is a choice between the racing line and swinging the human into pickups. Four dogs, six courses, three difficulties, optional 2–4 player WebRTC races.",
+    "controls": "← → or A/D or on-screen arrows: steer (dog auto-runs). Space / Coin Dash button: spend a stored dash (15 coins = 1 dash, max 2). P or Esc: pause. Touch arrows on mobile.",
+    "howToPlay": [
+      "Steer with ◀▶ / arrow keys. The dog runs automatically.",
+      "Only the dragged owner collects coins — plan the leash swing.",
+      "Cyan panels trigger SHIBA DASH acceleration.",
+      "Floating sneakers freeze the owner and slam the brakes; wait to recover.",
+      "A wooden stick in the mouth widens and blocks dogs behind you.",
+      "Beat 7 AI rivals. 幼柴/若柴 = 3 laps, 厳柴 = 5 laps.",
+      "フレンドと対戦: invite URL, 2–4 players over WebRTC (PeerJS signaling)."
+    ],
+    "dogs": [
+      { "id": "AKA SHIBA", "role": "balanced baseline" },
+      { "id": "KURO SHIBA", "role": "top speed, wide turning" },
+      { "id": "SHIRO SHIBA", "role": "tight corners, strong dash" },
+      { "id": "GOMA SHIBA", "role": "strongest dash" }
+    ],
+    "courses": ["おひる", "ゆうやけ", "おおあめ", "シバクール", "シバくだり", "SHIVA 2049"],
+    "difficulty": [
+      { "id": "幼柴", "laps": 3, "note": "easy" },
+      { "id": "若柴", "laps": 3, "note": "normal" },
+      { "id": "厳柴", "laps": 5, "note": "hard" }
+    ],
+    "verified": {
+      "checkedAt": "2026-08-20T10:42:00Z",
+      "httpStatus": 200,
+      "documentTitle": "SHIBA DASH!! お散歩グランプリ｜柴犬で走る無料ブラウザ3Dレースゲーム｜AMIX",
+      "ready": true,
+      "instantPlay": true,
+      "loginWall": false,
+      "language": "ja",
+      "xFrameOptions": "SAMEORIGIN",
+      "iframeEmbed": "blocked — amix-design.com refused to connect"
+    }
+  },
+  "portals": {
+    "crazygames": {
+      "submitUrl": "https://developer.crazygames.com/",
+      "engineTried": "Externally hosted (iframe)",
+      "iframeUrl": "https://amix-design.com/tl/tool-g-shiba/",
+      "iframeWillWork": false,
+      "blockers": [
+        "X-Frame-Options: SAMEORIGIN on https://amix-design.com/tl/tool-g-shiba/ — CrazyGames embeds games in an iframe, so this URL renders a blank/refused frame.",
+        "This environment has no CrazyGames Developer Portal login, so the Submit click cannot be finished by the agent.",
+        "The live game is authored by AMIX / トミナガハルキ. CrazyGames QA expects the submitter to own (or have a license for) the build. Republishing the AMIX URL as your title will be rejected."
+      ],
+      "whatWouldWork": "Upload an HTML5 zip of a game you own (index.html at zip root), with CrazyGames HTML5 SDK v3 Basic Launch: init, loadingStart/Stop, gameplayStart/Stop. Do not iframe AMIX. A parallel remake agent is already rewriting this repo toward a SHIBA DASH clone (cursor agent 'G-shiba 游戏复刻').",
+      "note": "Portal login is required. This agent cannot finish the upload."
+    },
+    "vibegaming": {
+      "submitUrl": "https://github.com/MaydayV/vibegaming",
+      "method": "PR against src/content/games.ts",
+      "status": "skipped — same ownership/iframe issues; GitHub token cannot fork MaydayV/vibegaming",
+      "entry": {
+        "slug": "shiba-dash",
+        "title": "SHIBA DASH!! お散歩グランプリ",
+        "tagline": {
+          "en": "Steer a sprinting Shiba while the owner on the leash collects the coins.",
+          "zh": "柴犬自己跑，你只负责转向；金币得靠被牵绳拖着的饲主去撞。",
+          "ja": "犬は自動で走る。ハンドルだけ操作して、引きずられる飼い主でコインを拾おう。"
+        },
+        "url": "https://amix-design.com/tl/tool-g-shiba/",
+        "author": "AMIX / トミナガハルキ",
+        "tags": ["Racing", "3D", "Dogs", "Web"],
+        "createdAt": "2026-08-20"
+      }
+    }
+  },
+  "crazygamesFormPaste": {
+    "title": "SHIBA DASH!! Walking Grand Prix",
+    "shortDescription": "Steer an auto-running Shiba Inu. Coins are caught by the owner bouncing on the leash.",
+    "longDescription": "SHIBA DASH!! is a 3D browser racer where the dog always sprints and you only steer. The owner trailing on the leash is the one who collects coins, so swinging wide on corners is a resource play, not a mistake. Pick Aka / Kuro / Shiro / Goma Shiba, race six courses (day city, sunset, rain, rooftops, river paddle, SHIVA 2049), and beat seven AI rivals. Easy and normal are 3 laps; hard is 5. Cyan panels are SHIBA DASH boosts, sneakers slam the brakes, sticks block dogs behind you. Optional 2–4 player races via invite URL (WebRTC).",
+    "instructions": "Arrow keys or A/D: steer. Space: Coin Dash. P / Esc: pause. On-screen arrows on touch. Dog runs automatically.",
+    "tags": ["3D", "racing", "dogs", "shiba", "arcade"],
+    "orientation": "landscape",
+    "devices": "desktop keyboard + on-screen touch arrows"
+  },
+  "shareText": "SHIBA DASH!! お散歩グランプリ — steer an auto-running Shiba; the owner on the leash grabs the coins.\nhttps://amix-design.com/tl/tool-g-shiba/\n←→ steer · Space Coin Dash · P pause\n制作：AMIX｜トミナガハルキ"
+}
