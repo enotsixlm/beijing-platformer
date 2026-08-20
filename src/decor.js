@@ -1,40 +1,58 @@
 import * as THREE from 'three'
 
+function neonBar(x, y, z, w, h, d, hex = 0x3cf0ff) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshBasicMaterial({ color: hex }),
+  )
+  m.position.set(x, y, z)
+  return m
+}
+
 export function addDecor(scene) {
   const colors = [0x3cf0ff, 0xff3ec8, 0xffe14a]
-  const spots = [
-    [-18.5, 6.4, -20], [18, 7.2, -16], [-12, 8.1, 4], [14, 5.8, 8],
-    [-8, 9.4, -22], [9, 6.6, -8], [-20, 5.2, -4], [20, 8.8, -6],
-    [0, 10.2, -24], [-15, 7.6, 10], [12, 9.0, -21], [4, 6.1, 6],
-    [-6, 8.4, -12], [16, 5.4, -22], [-22, 6.8, -14],
+  const planes = [
+    [-16, 7.2, -18, 1.6, 0.9], [14, 8.4, -12, 1.2, 0.7], [-10, 9.5, 2, 0.9, 1.4],
+    [18, 6.2, -6, 1.4, 0.8], [0, 11.2, -22, 2.2, 0.6], [-20, 5.6, -8, 1.1, 1.1],
+    [9, 8.8, -20, 0.8, 1.6], [-6, 6.8, 8, 1.3, 0.7], [12, 9.6, 4, 0.9, 0.9],
+    [-14, 10.4, -4, 1.5, 0.5], [20, 7.4, -16, 1.0, 1.3],
   ]
   const cubes = []
-  for (let i = 0; i < spots.length; i++) {
+  for (let i = 0; i < planes.length; i++) {
+    const [x, y, z, w, h] = planes[i]
     const hex = colors[i % 3]
-    const s = 0.42 + (i % 3) * 0.08
     const m = new THREE.Mesh(
-      new THREE.BoxGeometry(s, s, s),
-      new THREE.MeshLambertMaterial({ color: hex, emissive: hex, emissiveIntensity: 0.85 }),
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color: hex, side: THREE.DoubleSide, transparent: true, opacity: 0.92 }),
     )
-    m.position.set(...spots[i])
+    m.position.set(x, y, z)
     m.userData.ph = i * 0.7
-    m.userData.baseY = spots[i][1]
+    m.userData.baseY = y
     scene.add(m)
     cubes.push(m)
   }
-  const back = new THREE.PointLight(0x2ee8ff, 1.35, 40, 1.8)
-  back.position.set(0, 6.4, -22)
+
+  const frame = new THREE.Group()
+  const fw = 28, fh = 8.2, y0 = 1.15, z0 = -25.35
+  const t = 0.14
+  frame.add(neonBar(0, y0, z0, fw, t, t))
+  frame.add(neonBar(0, y0 + fh, z0, fw, t, t))
+  frame.add(neonBar(-fw / 2, y0 + fh / 2, z0, t, fh, t))
+  frame.add(neonBar(fw / 2, y0 + fh / 2, z0, t, fh, t))
+  scene.add(frame)
+
+  const horizon = neonBar(0, 9.4, -27.2, 48, 0.08, 0.08)
+  scene.add(horizon)
+
+  const back = new THREE.PointLight(0x2ee8ff, 1.2, 42, 1.8)
+  back.position.set(0, 5.6, -22)
   scene.add(back)
-  const floorGlow = new THREE.PointLight(0x1ad8e8, 0.55, 22, 1.8)
-  floorGlow.position.set(0, 1.2, 2)
-  scene.add(floorGlow)
   return cubes
 }
 
 export function stepDecor(cubes, t) {
   for (const c of cubes) {
-    c.position.y = c.userData.baseY + Math.sin(t * 0.9 + c.userData.ph) * 0.28
-    c.rotation.y += 0.006
-    c.rotation.x += 0.002
+    c.position.y = c.userData.baseY + Math.sin(t * 0.9 + c.userData.ph) * 0.22
+    c.rotation.y = Math.sin(t * 0.2 + c.userData.ph) * 0.15
   }
 }

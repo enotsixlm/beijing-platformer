@@ -96,8 +96,8 @@ try {
   await page.evaluate('window.__game.slot(1)')
   check((await S()).slot === 1, 'switch autogun')
   const afterShoot = await page.evaluate(() => {
-    window.__game.teleport(-2.5, 1.05, -8)
-    window.__game.aimAt(-2.5, 3.2, -16.2)
+    window.__game.teleport(-5, 1.05, -8)
+    window.__game.aimAt(-5, 3.2, -16.2)
     const ammo0 = window.__game.state().ammo
     window.__game.holdFire(true)
     window.__game.advance(800)

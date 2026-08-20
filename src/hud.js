@@ -3,6 +3,14 @@ export function paintWeaponIcons(canvases) {
   canvases.forEach((c, i) => drawers[i](c.getContext('2d')))
 }
 
+export function paintWeaponIcon(canvas, slot) {
+  if (!canvas) return
+  const drawers = [drawCannon, drawAuto, drawScatter, drawRocket]
+  const g = canvas.getContext('2d')
+  g.setTransform(canvas.width / 46, 0, 0, canvas.height / 46, 0, 0)
+  drawers[slot](g)
+}
+
 function bg(g) {
   g.clearRect(0, 0, 46, 46)
 }
@@ -76,6 +84,8 @@ export function bindHud() {
     reloadArc: document.getElementById('reloadArc'),
     overlay: document.getElementById('overlay'),
     dmgLayer: document.getElementById('dmgLayer'),
+    reloadText: document.getElementById('reloadText'),
+    weaponIcon: document.getElementById('weaponIcon'),
   }
 }
 
@@ -83,15 +93,16 @@ export function syncHud(hud, player, loadout, weapon, fps) {
   hud.fps.textContent = `${fps} FPS`
   hud.hpFill.style.width = `${player.hp}%`
   hud.hpText.textContent = `${player.hp | 0}/100`
-  hud.weaponName.textContent = weapon.name
+  hud.weaponName.textContent = weapon.shortName || weapon.name
   hud.ammo.textContent = `${loadout.ammo[loadout.slot]} / ${weapon.mag}`
   hud.ammo.classList.toggle('low', loadout.ammo[loadout.slot] <= Math.ceil(weapon.mag * 0.25))
   hud.slots.forEach((s, i) => s.classList.toggle('active', i === loadout.slot))
-  hud.crosshair.className = `hud ${weapon.crosshair}`
+  paintWeaponIcon(hud.weaponIcon, loadout.slot)
   if (loadout.reloading) {
     hud.reloadWrap.classList.add('show')
     const t = loadout.reloadT / loadout.reloadDur
     hud.reloadArc.style.strokeDashoffset = String(88 * (1 - t))
+    if (hud.reloadText) hud.reloadText.textContent = weapon.reloadLabel || 'RELOADING'
   } else {
     hud.reloadWrap.classList.remove('show')
   }

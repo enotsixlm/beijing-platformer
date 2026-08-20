@@ -11,7 +11,7 @@ import { createDebris, createPuffs } from './debris.js'
 import { createDummies, updateDummies } from './dummies.js'
 import {
   createLoadout, currentWeapon, setSlot, startReload, stepLoadout,
-  tryFire, stepRockets, makeTracer, makeMuzzle,
+  tryFire, stepRockets, makeTracer, makeMuzzle, makeImpact,
 } from './combat.js'
 import { paintWeaponIcons, showDamage, bindHud, syncHud } from './hud.js'
 import { createAudio } from './audio.js'
@@ -22,8 +22,7 @@ const PHYS = 1 / 120
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
-renderer.shadowMap.enabled = true
-renderer.shadowMap.type = THREE.PCFSoftShadowMap
+renderer.shadowMap.enabled = false
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = LOOK.exposure
 renderer.domElement.id = 'game'
@@ -37,14 +36,8 @@ const camera = new THREE.PerspectiveCamera(LOOK.fov, innerWidth / innerHeight, 0
 
 const hemi = new THREE.HemisphereLight(0x3a88a8, 0x080c10, 0.48)
 scene.add(hemi)
-const key = new THREE.DirectionalLight(0xd8e8f4, 0.46)
+const key = new THREE.DirectionalLight(0xd8e8f4, 0.38)
 key.position.set(14, 26, 10)
-key.castShadow = true
-key.shadow.mapSize.set(1024, 1024)
-key.shadow.camera.near = 2
-key.shadow.camera.far = 80
-key.shadow.camera.left = key.shadow.camera.bottom = -30
-key.shadow.camera.right = key.shadow.camera.top = 30
 scene.add(key)
 
 const fill = new THREE.PointLight(0x2ee8ff, 1.15, 48, 1.6)
@@ -122,6 +115,7 @@ const loadout = createLoadout()
 const rockets = []
 const tracers = []
 const flashes = []
+const impacts = []
 const audio = createAudio()
 const hud = bindHud()
 paintWeaponIcons(hud.slots.map((s) => s.querySelector('canvas')))
@@ -264,6 +258,9 @@ function handleFire() {
   flashes.push(makeMuzzle(scene, mz))
   for (const shot of result.shots) {
     if (w.tracer && shot.point) tracers.push(makeTracer(scene, mz.clone(), shot.point, w.tracer))
+    if (shot.kind === 'world' && shot.point) {
+      impacts.push(makeImpact(scene, shot.point, combatCtx.aim))
+    }
     if (shot.kind === 'dummy' && shot.removed) {
       audio.dummy()
       showDamage(hud.dmgLayer, renderer, camera, shot.point, shot.removed)
@@ -279,7 +276,7 @@ function stepFx(dt) {
   for (let i = tracers.length - 1; i >= 0; i--) {
     const t = tracers[i]
     t.life -= dt
-    const k = Math.max(0, t.life / 0.09)
+    const k = Math.max(0, t.life / 0.11)
     if (t.core) {
       t.core.material.opacity = k
       t.glow.material.opacity = k * 0.38
@@ -301,6 +298,19 @@ function stepFx(dt) {
       scene.remove(f.light); scene.remove(f.flash)
       if (f.corona) scene.remove(f.corona)
       flashes.splice(i, 1)
+    }
+  }
+  for (let i = impacts.length - 1; i >= 0; i--) {
+    const im = impacts[i]
+    im.life -= dt
+    const k = Math.max(0, im.life / 0.14)
+    im.mesh.material.opacity = k
+    if (im.light) im.light.intensity = 2.4 * k
+    if (im.life <= 0) {
+      scene.remove(im.mesh)
+      if (im.light) scene.remove(im.light)
+      im.mesh.geometry.dispose()
+      impacts.splice(i, 1)
     }
   }
 }
@@ -356,7 +366,7 @@ function tick(dt, now) {
   stepFx(dt)
   stepDecor(decor, now / 1000)
   const moving = Math.hypot(player.vel.x, player.vel.z) > 0.4
-  syncCowboy(player, cowboy, now, moving)
+  syncCowboy(player, cowboy, now, moving, currentWeapon(loadout).id)
   for (const [id, gun] of Object.entries(cowboy.guns)) gun.visible = id === currentWeapon(loadout).id
   updateCamera(dt)
   syncHud(hud, player, loadout, currentWeapon(loadout), fps)
@@ -371,7 +381,7 @@ function frame(now) {
   if (composer) composer.render()
   else renderer.render(scene, camera)
 }
-syncCowboy(player, cowboy, 0, false)
+syncCowboy(player, cowboy, 0, false, 'cannon')
 snapCamera()
 requestAnimationFrame(frame)
 

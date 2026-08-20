@@ -46,8 +46,8 @@ try {
   })
   await page.screenshot({ path: join(outDir, '1-range.png') })
   await page.evaluate(() => {
-    window.__game.teleport(-2.5, 1.05, -6)
-    window.__game.aimAt(-2.5, 3.2, -16.2)
+    window.__game.teleport(-5, 1.05, -6)
+    window.__game.aimAt(-5, 3.2, -16.2)
     window.__game.slot(1)
     window.__game.holdFire(true)
     window.__game.advance(500)

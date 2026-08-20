@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>VX Range</title>
+  <title>Voxline</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #020508; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #071018; }
     body {
       font-family: "Segoe UI", "PingFang SC", system-ui, sans-serif;
       user-select: none; color: #e8f4ff;
@@ -15,64 +15,72 @@
 
     #vignette {
       position: fixed; inset: 0; z-index: 3; pointer-events: none;
-      background: radial-gradient(ellipse at center, transparent 52%, rgba(0, 4, 10, 0.42) 100%);
+      background: radial-gradient(ellipse at center, transparent 58%, rgba(0, 6, 12, 0.38) 100%);
     }
 
     .hud { position: fixed; z-index: 5; pointer-events: none; }
 
+    #chrome {
+      top: 0; left: 0; right: 0; height: 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 10px;
+      background: rgba(8, 12, 16, 0.72);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 12px; letter-spacing: 0.04em; color: #d5e0ea;
+    }
+    #chrome .icons { display: flex; gap: 8px; opacity: 0.55; }
+    #chrome .icons span {
+      width: 14px; height: 14px; border: 1px solid rgba(230,240,255,0.45); border-radius: 3px;
+    }
+
     #fps {
-      top: 10px; left: 12px;
-      font-size: 12px; letter-spacing: 0.1em; color: #9ad7e8; opacity: 0.9;
+      top: 36px; left: 12px;
+      font-size: 11px; letter-spacing: 0.08em; color: #b7c9d4; opacity: 0.9;
     }
 
     #vitals {
-      top: 30px; left: 12px;
-      width: 216px; padding: 8px 10px 10px;
-      background: rgba(4, 8, 14, 0.78);
-      border: 1px solid rgba(58, 232, 255, 0.16);
+      top: 52px; left: 12px;
+      width: 198px; padding: 7px 9px 8px;
+      background: rgba(8, 12, 18, 0.78);
       border-radius: 8px;
     }
     #vitals .label {
-      font-size: 11px; letter-spacing: 0.22em; color: #c9d6e0; margin-bottom: 5px;
+      font-size: 10px; letter-spacing: 0.2em; color: #c9d6e0; margin-bottom: 4px;
     }
     #vitals .row { display: flex; align-items: center; gap: 8px; }
     #hpTrack {
-      flex: 1; height: 10px; background: #1a1510; border-radius: 3px; overflow: hidden;
+      flex: 1; height: 8px; background: #1a1510; border-radius: 2px; overflow: hidden;
     }
     #hpFill {
       height: 100%; width: 100%;
-      background: linear-gradient(90deg, #ff7a18, #ffd24a);
-      box-shadow: 0 0 10px rgba(255, 140, 40, 0.55);
+      background: linear-gradient(90deg, #ff8a2a, #ffe08a);
     }
-    #hpText { font-size: 12px; color: #fff; min-width: 58px; text-align: right; }
+    #hpText { font-size: 11px; color: #fff; min-width: 52px; text-align: right; }
 
-    #titlebar {
-      top: 10px; left: 50%; transform: translateX(-50%);
-      font-size: 13px; letter-spacing: 0.18em; color: #d5e6f0; opacity: 0.88;
-    }
     #pauseChip {
-      top: 8px; right: 236px;
-      width: 28px; height: 22px;
-      border: 1px solid rgba(200, 220, 235, 0.28);
-      border-radius: 4px;
+      top: 36px; right: 14px;
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 1.5px solid rgba(220, 230, 240, 0.55);
       display: flex; align-items: center; justify-content: center; gap: 3px;
     }
     #pauseChip i {
-      display: block; width: 3px; height: 10px; background: #e8f4ff; opacity: 0.85;
+      display: block; width: 3px; height: 10px; background: #e8f4ff; opacity: 0.9;
     }
 
     #weaponInfo {
-      top: 10px; right: 14px;
-      min-width: 196px; padding: 8px 12px;
-      background: rgba(4, 8, 14, 0.78);
-      border: 1px solid rgba(58, 232, 255, 0.16);
-      border-radius: 8px; text-align: right;
+      top: 68px; right: 14px;
+      min-width: 168px; padding: 6px 10px 8px;
+      background: rgba(8, 12, 18, 0.78);
+      border-radius: 8px;
+      display: flex; align-items: center; gap: 8px; justify-content: flex-end;
     }
+    #weaponIcon { width: 36px; height: 36px; flex: 0 0 auto; }
+    #weaponCopy { text-align: right; }
     #weaponName {
-      font-size: 13px; letter-spacing: 0.14em; color: #f2f7fb;
+      font-size: 11px; letter-spacing: 0.08em; color: #eef3f7; white-space: nowrap;
     }
     #ammo {
-      margin-top: 2px; font-size: 18px; font-weight: 700; color: #fff;
+      margin-top: 1px; font-size: 16px; font-weight: 700; color: #fff;
     }
     #ammo.low { color: #ffb04a; }
 
@@ -99,34 +107,13 @@
 
     #crosshair {
       top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: 22px; height: 22px;
+      width: 8px; height: 8px;
     }
     #crosshair .dot {
-      position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
-      margin: -1.5px 0 0 -1.5px; background: #fff; border-radius: 50%;
-      box-shadow: 0 0 4px #fff;
+      position: absolute; left: 50%; top: 50%; width: 4px; height: 4px;
+      margin: -2px 0 0 -2px; background: #fff; border-radius: 50%;
+      box-shadow: 0 0 6px #fff;
     }
-    #crosshair .tick {
-      position: absolute; background: rgba(255,255,255,0.9);
-    }
-    #crosshair.cannon .tick.t { left: 9px; top: 2px; width: 3px; height: 5px; }
-    #crosshair.cannon .tick.b { left: 9px; bottom: 2px; width: 3px; height: 5px; }
-    #crosshair.cannon .tick.l { top: 9px; left: 2px; width: 5px; height: 3px; }
-    #crosshair.cannon .tick.r { top: 9px; right: 2px; width: 5px; height: 3px; }
-    #crosshair.auto .tick.t { left: 10px; top: 0; width: 2px; height: 6px; }
-    #crosshair.auto .tick.b { left: 10px; bottom: 0; width: 2px; height: 6px; }
-    #crosshair.auto .tick.l { top: 10px; left: 0; width: 6px; height: 2px; }
-    #crosshair.auto .tick.r { top: 10px; right: 0; width: 6px; height: 2px; }
-    #crosshair.spread { width: 34px; height: 34px; }
-    #crosshair.spread .tick.t { left: 15px; top: 2px; width: 3px; height: 6px; }
-    #crosshair.spread .tick.b { left: 15px; bottom: 2px; width: 3px; height: 6px; }
-    #crosshair.spread .tick.l { top: 15px; left: 2px; width: 6px; height: 3px; }
-    #crosshair.spread .tick.r { top: 15px; right: 2px; width: 6px; height: 3px; }
-    #crosshair.rocket { width: 28px; height: 28px; }
-    #crosshair.rocket .tick.t { left: 12px; top: 0; width: 4px; height: 7px; }
-    #crosshair.rocket .tick.b { left: 12px; bottom: 0; width: 4px; height: 7px; }
-    #crosshair.rocket .tick.l { top: 12px; left: 0; width: 7px; height: 4px; }
-    #crosshair.rocket .tick.r { top: 12px; right: 0; width: 7px; height: 4px; }
 
     #reloadWrap {
       top: 50%; left: 50%; transform: translate(-50%, 28px);
@@ -167,6 +154,10 @@
 </head>
 <body>
   <div id="vignette"></div>
+  <div id="chrome" class="hud">
+    <div>Voxline - Play Mode</div>
+    <div class="icons"><span></span><span></span><span></span></div>
+  </div>
   <div id="fps" class="hud">60 FPS</div>
   <div id="vitals" class="hud">
     <div class="label">VITALS</div>
@@ -175,11 +166,13 @@
       <div id="hpText">100/100</div>
     </div>
   </div>
-  <div id="titlebar" class="hud">Play Mode</div>
   <div id="pauseChip" class="hud"><i></i><i></i></div>
   <div id="weaponInfo" class="hud">
-    <div id="weaponName">VX-9 HAND CANNON</div>
-    <div id="ammo">10 / 10</div>
+    <canvas id="weaponIcon" width="36" height="36"></canvas>
+    <div id="weaponCopy">
+      <div id="weaponName">VX-9 HAND CA...</div>
+      <div id="ammo">10 / 10</div>
+    </div>
   </div>
   <div id="hotbar" class="hud">
     <div class="slot active" data-slot="0"><canvas width="46" height="46"></canvas><span class="num">1</span></div>
@@ -187,10 +180,8 @@
     <div class="slot" data-slot="2"><canvas width="46" height="46"></canvas><span class="num">3</span></div>
     <div class="slot" data-slot="3"><canvas width="46" height="46"></canvas><span class="num">4</span></div>
   </div>
-  <div id="crosshair" class="hud cannon">
+  <div id="crosshair" class="hud">
     <div class="dot"></div>
-    <div class="tick t"></div><div class="tick b"></div>
-    <div class="tick l"></div><div class="tick r"></div>
   </div>
   <div id="reloadWrap" class="hud">
     <svg id="reloadRing" viewBox="0 0 36 36">
@@ -202,7 +193,7 @@
   </div>
   <div id="dmgLayer"></div>
   <div id="overlay">
-    <h1>VX RANGE</h1>
+    <h1>VOXLINE</h1>
     <div class="sub">
       Third-person voxel range · four guns · shatter dummies · carve terrain<br>
       WASD move · SHIFT dash · SPACE jump · Mouse aim · LMB fire · 1-4 weapons · R reload

@@ -30,10 +30,11 @@ function makeMat(hex) {
 
 export function createDummies(scene) {
   const specs = [
-    { x: -7.5, z: -16.5, color: COLORS[0] },
-    { x: -2.5, z: -16.2, color: COLORS[1] },
-    { x: 2.5, z: -16.4, color: COLORS[2] },
-    { x: 7.5, z: -16.3, color: COLORS[0] },
+    { x: -10, z: -16.5, color: COLORS[0] },
+    { x: -5, z: -16.2, color: COLORS[1] },
+    { x: 0, z: -16.4, color: COLORS[2] },
+    { x: 5, z: -16.3, color: COLORS[0] },
+    { x: 10, z: -16.4, color: COLORS[1] },
   ]
   const list = specs.map((s) => makeDummy(scene, s.x, s.z, s.color))
   return list
@@ -52,12 +53,20 @@ function makeDummy(scene, x, z, hex) {
   group.add(stand)
 
   const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(0.62, 28),
-    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.16, side: THREE.DoubleSide }),
+    new THREE.CircleGeometry(0.72, 28),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.22, side: THREE.DoubleSide }),
   )
   disc.rotation.x = -Math.PI / 2
   disc.position.y = 0.03
   group.add(disc)
+
+  const blob = new THREE.Mesh(
+    new THREE.CircleGeometry(0.38, 18),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false }),
+  )
+  blob.rotation.x = -Math.PI / 2
+  blob.position.y = 0.025
+  group.add(blob)
 
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(0.68, 0.92, 32),

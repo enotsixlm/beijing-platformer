@@ -4,7 +4,6 @@ import { PLAYER } from './config.js'
 function box(parent, x, y, z, w, h, d, mat) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
   m.position.set(x, y, z)
-  m.castShadow = true
   parent.add(m)
   return m
 }
@@ -17,53 +16,69 @@ function glowMat(color) {
   return new THREE.MeshBasicMaterial({ color })
 }
 
+function blobShadow(parent, y = 0.02, r = 0.42) {
+  const s = new THREE.Mesh(
+    new THREE.CircleGeometry(r, 20),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false }),
+  )
+  s.rotation.x = -Math.PI / 2
+  s.position.y = y
+  parent.add(s)
+  return s
+}
+
 export function createCowboy() {
   const root = new THREE.Group()
   const L = new THREE.Group()
   root.add(L)
 
-  const leather = mat(0xa45a2a)
-  const leatherD = mat(0x6e3514)
-  const denim = mat(0x3a6ea8)
-  const skin = mat(0xefc39a)
-  const boot = mat(0x4e2a12)
-  const pack = mat(0x8a9098)
-  const hat = mat(0x8a4a1c)
+  const leather = mat(0x8a4a24)
+  const leatherD = mat(0x5c3014)
+  const khaki = mat(0xc4a06a)
+  const khakiD = mat(0x9a7848)
+  const skin = mat(0xe8b892)
+  const boot = mat(0x3a2414)
+  const pack = mat(0x6e747c)
+  const hat = mat(0x7a4218)
+  const band = mat(0xc45a48)
+  const scarf = mat(0x3a6ea8)
   const orange = glowMat(0xff7a18)
   const buckle = glowMat(0xffc14a)
 
-  const V = 0.085
+  const V = 0.072
   const vox = (px, py, pz, w, h, d, m) => box(L, px * V, py * V, pz * V, w * V, h * V, d * V, m)
 
-  // boots + shins
-  vox(-2.2, 1.4, 1.2, 3.2, 2.8, 4.2, boot)
-  vox(2.2, 1.4, 1.2, 3.2, 2.8, 4.2, boot)
-  vox(-2.2, 5.2, 0.2, 3.0, 5.2, 3.2, denim)
-  vox(2.2, 5.2, 0.2, 3.0, 5.2, 3.2, denim)
-  vox(0, 8.4, 0.1, 7.2, 2.2, 3.8, denim)
-  vox(0, 9.6, 0.15, 7.4, 1.1, 4.0, leatherD)
-  vox(0, 9.6, 2.1, 1.4, 0.7, 0.6, buckle)
-  // jacket
-  vox(0, 13.4, 0.0, 7.2, 6.8, 4.0, leather)
-  vox(0, 16.6, 0.6, 5.2, 1.2, 3.2, leatherD)
-  // arms
-  const armL = vox(-5.4, 13.2, 0.2, 2.4, 6.6, 2.4, leather)
-  const armR = vox(5.4, 13.2, 0.2, 2.4, 6.6, 2.4, leather)
-  vox(-5.4, 9.6, 0.2, 2.2, 1.6, 2.2, skin)
-  vox(5.4, 9.6, 0.2, 2.2, 1.6, 2.2, skin)
-  // pack + orange accents
-  vox(0, 13.6, 2.6, 5.2, 5.6, 2.2, pack)
-  vox(0, 16.2, 3.6, 3.6, 0.8, 0.6, orange)
-  vox(-1.6, 13.2, 3.6, 0.7, 2.4, 0.5, orange)
-  vox(1.6, 13.2, 3.6, 0.7, 2.4, 0.5, orange)
-  // head + hat
-  vox(0, 19.2, -1.4, 4.6, 4.6, 4.6, skin)
-  vox(0, 22.0, -1.4, 5.0, 2.2, 5.0, hat)
-  vox(0, 20.9, -1.4, 9.2, 0.9, 9.2, hat)
+  vox(-2.1, 1.3, 1.4, 3.0, 2.6, 4.0, boot)
+  vox(2.1, 1.3, 1.4, 3.0, 2.6, 4.0, boot)
+  vox(-2.1, 5.1, 0.4, 2.8, 5.0, 3.0, khaki)
+  vox(2.1, 5.1, 0.4, 2.8, 5.0, 3.0, khaki)
+  vox(0, 8.2, 0.2, 6.8, 2.0, 3.6, khakiD)
+  vox(0, 9.5, 0.25, 7.0, 1.0, 3.8, leatherD)
+  vox(0, 9.5, 2.2, 1.5, 0.7, 0.6, buckle)
+  vox(0, 13.2, 0.0, 6.8, 6.6, 3.8, leather)
+  vox(0, 16.4, 0.7, 5.0, 1.1, 3.0, leatherD)
+  vox(0, 15.4, -2.0, 3.6, 1.6, 1.4, scarf)
+  const armL = vox(-5.2, 12.8, 0.1, 2.2, 6.4, 2.2, leather)
+  const armR = vox(5.2, 12.8, 0.1, 2.2, 6.4, 2.2, leather)
+  vox(-5.2, 9.2, 0.1, 2.0, 1.5, 2.0, skin)
+  vox(5.2, 9.2, 0.1, 2.0, 1.5, 2.0, skin)
+  vox(0, 13.4, 2.7, 5.4, 5.8, 2.4, pack)
+  vox(-1.5, 13.0, 3.8, 0.7, 2.6, 0.5, orange)
+  vox(1.5, 13.0, 3.8, 0.7, 2.6, 0.5, orange)
+  vox(0, 16.0, 3.8, 3.2, 0.7, 0.5, orange)
+  vox(0, 19.0, -1.5, 4.4, 4.4, 4.4, skin)
+  vox(0, 21.6, -1.5, 4.8, 2.0, 4.8, hat)
+  vox(0, 20.6, -1.5, 9.0, 0.85, 9.0, hat)
+  vox(0, 20.7, -1.5, 5.2, 0.7, 5.2, band)
 
   const weaponRoot = new THREE.Group()
-  weaponRoot.position.set(0.48, 1.05, -0.2)
+  weaponRoot.position.set(0.5, 1.02, -0.18)
   L.add(weaponRoot)
+
+  const backRoot = new THREE.Group()
+  backRoot.position.set(-0.08, 1.22, 0.34)
+  backRoot.rotation.set(0.55, 0.35, 0.15)
+  L.add(backRoot)
 
   const guns = {
     cannon: makeGun('cannon'),
@@ -77,7 +92,23 @@ export function createCowboy() {
   }
   guns.cannon.visible = true
 
-  return { root, body: L, armL, armR, weaponRoot, guns }
+  const holster = {
+    cannon: makeGun('cannon'),
+    autogun: makeGun('autogun'),
+    scattergun: makeGun('scattergun'),
+    blockbuster: makeGun('blockbuster'),
+  }
+  let i = 0
+  for (const [id, g] of Object.entries(holster)) {
+    g.scale.setScalar(id === 'blockbuster' ? 0.82 : 0.48)
+    g.position.set((i - 1.4) * 0.1, id === 'blockbuster' ? 0.12 : 0.02, 0)
+    backRoot.add(g)
+    i++
+  }
+
+  blobShadow(root, 0.03, 0.46)
+
+  return { root, body: L, armL, armR, weaponRoot, guns, holster }
 }
 
 function makeGun(kind) {
@@ -86,27 +117,30 @@ function makeGun(kind) {
   const mid = mat(0x4a5158)
   const acc = glowMat(0xff7a18)
   const glow = glowMat(0xffc14a)
+  const blue = glowMat(0x3cf0ff)
   if (kind === 'cannon') {
-    box(g, 0, 0, -0.22, 0.22, 0.28, 0.5, dark)
-    box(g, 0, 0.02, -0.62, 0.16, 0.16, 0.38, mid)
-    box(g, 0.12, -0.12, -0.1, 0.1, 0.22, 0.16, acc)
-    box(g, 0, 0.02, -0.84, 0.14, 0.14, 0.12, glow)
+    box(g, 0, 0, -0.28, 0.28, 0.34, 0.62, dark)
+    box(g, 0, 0.04, -0.72, 0.2, 0.2, 0.42, mid)
+    box(g, 0.14, -0.14, -0.12, 0.12, 0.26, 0.2, acc)
+    box(g, 0, 0.04, -0.96, 0.18, 0.18, 0.14, glow)
   } else if (kind === 'autogun') {
-    box(g, 0, 0.02, -0.35, 0.16, 0.2, 0.9, dark)
-    box(g, 0, 0.12, -0.05, 0.12, 0.14, 0.28, mid)
-    box(g, 0.1, -0.08, -0.05, 0.08, 0.2, 0.18, acc)
-    box(g, 0, 0.02, -0.86, 0.1, 0.1, 0.16, glow)
+    box(g, 0, 0.04, -0.42, 0.2, 0.24, 1.12, dark)
+    box(g, 0, 0.16, -0.08, 0.16, 0.16, 0.34, mid)
+    box(g, 0.12, -0.1, -0.06, 0.1, 0.22, 0.2, acc)
+    box(g, 0, 0.04, -1.02, 0.14, 0.14, 0.2, glow)
+    box(g, 0, 0.16, -0.5, 0.08, 0.08, 0.22, blue)
   } else if (kind === 'scattergun') {
-    box(g, 0, 0, -0.28, 0.28, 0.24, 0.62, dark)
-    box(g, 0.1, 0.08, -0.55, 0.1, 0.1, 0.36, mid)
-    box(g, -0.1, 0.08, -0.55, 0.1, 0.1, 0.36, mid)
-    box(g, 0, 0.02, -0.72, 0.3, 0.2, 0.16, glow)
+    box(g, 0, 0, -0.34, 0.34, 0.28, 0.72, dark)
+    box(g, 0.12, 0.1, -0.68, 0.12, 0.12, 0.42, mid)
+    box(g, -0.12, 0.1, -0.68, 0.12, 0.12, 0.42, mid)
+    box(g, 0, 0.02, -0.88, 0.36, 0.22, 0.18, glow)
   } else {
-    box(g, 0.1, 0.12, -0.2, 0.28, 0.28, 0.7, dark)
-    box(g, 0.1, 0.12, -0.62, 0.22, 0.22, 0.28, acc)
-    box(g, 0.1, 0.12, -0.82, 0.18, 0.18, 0.18, glow)
+    box(g, 0.08, 0.16, -0.22, 0.36, 0.34, 0.86, dark)
+    box(g, 0.08, 0.16, -0.72, 0.28, 0.28, 0.32, acc)
+    box(g, 0.08, 0.16, -0.98, 0.24, 0.24, 0.22, glow)
+    box(g, 0.08, 0.32, -0.4, 0.12, 0.12, 0.28, blue)
   }
-  g.userData.muzzle = new THREE.Vector3(0, 0.02, kind === 'blockbuster' ? -0.92 : -0.88)
+  g.userData.muzzle = new THREE.Vector3(0, 0.04, kind === 'blockbuster' ? -1.12 : -1.05)
   return g
 }
 
@@ -115,7 +149,7 @@ export function createPlayerState() {
     pos: new THREE.Vector3(0, 1.02, 12),
     vel: new THREE.Vector3(),
     yaw: 0,
-    pitch: -0.12,
+    pitch: -0.1,
     grounded: true,
     sinceGround: 0,
     dashT: 0,
@@ -136,7 +170,7 @@ export function rightDir(yaw, out = new THREE.Vector3()) {
 }
 
 export function stepPlayer(p, input, dt, solidAt) {
-  lookDir(p.yaw, 0) // yaw-only for move
+  lookDir(p.yaw, 0)
   const fwd = new THREE.Vector3(Math.sin(p.yaw), 0, -Math.cos(p.yaw))
   const right = rightDir(p.yaw)
   let mx = input.x
@@ -237,11 +271,14 @@ function resolveVoxels(p, solidAt) {
   }
 }
 
-export function syncCowboy(p, mesh, now, moving) {
+export function syncCowboy(p, mesh, now, moving, activeId) {
   mesh.root.position.copy(p.pos)
   mesh.root.rotation.y = p.yaw
   const bob = moving && p.grounded ? Math.sin(now * 0.012) * 0.03 : 0
   mesh.body.position.y = bob
-  mesh.body.rotation.x = 0.1 + (p.dashT > 0 ? 0.14 : 0)
-  mesh.weaponRoot.rotation.x = -p.pitch * 0.42
+  mesh.body.rotation.x = 0.14 + (p.dashT > 0 ? 0.22 : 0)
+  mesh.weaponRoot.rotation.x = -p.pitch * 0.5
+  if (mesh.holster && activeId) {
+    for (const [id, g] of Object.entries(mesh.holster)) g.visible = id !== activeId
+  }
 }

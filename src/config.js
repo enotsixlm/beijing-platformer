@@ -16,14 +16,14 @@ export const MAT = {
 }
 
 export const LOOK = {
-  bg: 0x03080c,
-  fogNear: 26,
-  fogFar: 70,
-  bloomStrength: 0.68,
-  bloomRadius: 0.4,
-  bloomThreshold: 0.58,
-  exposure: 0.9,
-  fov: 58,
+  bg: 0x071018,
+  fogNear: 24,
+  fogFar: 64,
+  bloomStrength: 0.62,
+  bloomRadius: 0.38,
+  bloomThreshold: 0.52,
+  exposure: 0.95,
+  fov: 60,
 }
 
 export const PLAYER = {
@@ -39,9 +39,9 @@ export const PLAYER = {
   halfW: 0.38,
   height: 1.62,
   eye: 1.42,
-  camDist: 3.28,
-  camShoulder: 1.08,
-  camHeight: 1.48,
+  camDist: 2.95,
+  camShoulder: 0.82,
+  camHeight: 1.38,
   mouseSens: 0.00215,
 }
 
@@ -61,6 +61,9 @@ export const WEAPONS = [
     auto: false,
     crosshair: 'cannon',
     color: 0xff7a18,
+    tracer: 0xffc14a,
+    shortName: 'VX-9 HAND CA...',
+    reloadLabel: 'CHAMBERING',
   },
   {
     id: 'autogun',
@@ -75,9 +78,11 @@ export const WEAPONS = [
     carve: 0,
     dummyRadius: 0.42,
     auto: true,
-    tracer: 0xff3a18,
+    tracer: 0xff6a22,
     crosshair: 'auto',
     color: 0xff3a2a,
+    shortName: 'VX-24 AUTOGUN',
+    reloadLabel: 'RELOADING',
   },
   {
     id: 'scattergun',
@@ -94,6 +99,8 @@ export const WEAPONS = [
     auto: false,
     crosshair: 'spread',
     color: 0xffc14a,
+    shortName: 'VX-8 SCATTERG...',
+    reloadLabel: 'RELOADING',
   },
   {
     id: 'blockbuster',
@@ -111,6 +118,8 @@ export const WEAPONS = [
     auto: false,
     crosshair: 'rocket',
     color: 0xff9a1a,
+    shortName: 'VX-R7 BLOCKB...',
+    reloadLabel: 'LOADING ROCKETS',
   },
 ]
 

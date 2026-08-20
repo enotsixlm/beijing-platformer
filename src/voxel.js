@@ -49,35 +49,27 @@ export function fillArena(world) {
   for (let z = 0; z < sz; z++) {
     for (let x = 0; x < sx; x++) {
       world.set(x, 0, z, MAT.FLOOR)
-      const edge = x < 2 || z < 2 || x > sx - 3 || z > sz - 3
+      const edge = x < 1 || z < 1 || x > sx - 2 || z > sz - 2
       if (edge) {
-        for (let y = 1; y <= 9; y++) world.set(x, y, z, MAT.WALL)
+        for (let y = 1; y <= 2; y++) world.set(x, y, z, MAT.WALL)
       }
     }
   }
   // back wall inner slab — mostly solid so small guns spark without carving
-  for (let x = 7; x < sx - 7; x++) {
-    for (let y = 1; y <= 11; y++) {
-      world.set(x, y, 3, MAT.SOLID)
+  for (let x = 6; x < sx - 6; x++) {
+    for (let y = 1; y <= 8; y++) {
       world.set(x, y, 2, MAT.SOLID)
+      world.set(x, y, 1, MAT.SOLID)
     }
   }
-  // thick cyan frame on the back wall
-  for (let x = 9; x < sx - 9; x++) {
-    for (let z = 4; z <= 5; z++) {
-      world.set(x, 1, z, MAT.NEON)
-      world.set(x, 2, z, MAT.NEON)
-      world.set(x, 9, z, MAT.NEON)
-      world.set(x, 10, z, MAT.NEON)
-    }
+  // thin cyan voxel hints on the back wall (visual frame is also drawn in decor)
+  for (let x = 12; x < sx - 12; x++) {
+    world.set(x, 2, 3, MAT.NEON)
+    world.set(x, 8, 3, MAT.NEON)
   }
-  for (let y = 1; y <= 10; y++) {
-    for (let z = 4; z <= 5; z++) {
-      world.set(9, y, z, MAT.NEON)
-      world.set(10, y, z, MAT.NEON)
-      world.set(sx - 10, y, z, MAT.NEON)
-      world.set(sx - 11, y, z, MAT.NEON)
-    }
+  for (let y = 2; y <= 8; y++) {
+    world.set(12, y, 3, MAT.NEON)
+    world.set(sx - 13, y, 3, MAT.NEON)
   }
   // destructible side bunker on the right
   for (let z = 16; z < 26; z++) {
@@ -224,6 +216,9 @@ void main() {
     float major = 1.0 - smoothstep(0.0, 0.012, min(g4.x, g4.y));
     col += uLine * (line * 0.85 + major * 0.35);
     col += vec3(0.02, 0.06, 0.07);
+    vec3 view = normalize(cameraPosition - vWorld);
+    float spec = pow(max(dot(n, normalize(view + vec3(0.0, 1.0, 0.0))), 0.0), 28.0);
+    col += vec3(0.18, 0.32, 0.36) * spec;
   }
   gl_FragColor = vec4(col, 1.0);
   #include <fog_fragment>

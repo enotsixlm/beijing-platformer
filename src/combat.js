@@ -190,12 +190,12 @@ export function makeTracer(scene, from, to, hex) {
   const dir = new THREE.Vector3().subVectors(to, from)
   const len = Math.max(0.25, dir.length())
   const core = new THREE.Mesh(
-    new THREE.BoxGeometry(0.05, 0.05, 1),
+    new THREE.BoxGeometry(0.07, 0.07, 1),
     new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 1 }),
   )
   const glow = new THREE.Mesh(
-    new THREE.BoxGeometry(0.16, 0.16, 1),
-    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.38 }),
+    new THREE.BoxGeometry(0.22, 0.22, 1),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.42 }),
   )
   core.scale.z = len
   glow.scale.z = len
@@ -205,7 +205,22 @@ export function makeTracer(scene, from, to, hex) {
   group.position.copy(from).addScaledVector(dir, 0.5)
   group.lookAt(to)
   scene.add(group)
-  return { mesh: group, core, glow, life: 0.09 }
+  return { mesh: group, core, glow, life: 0.11 }
+}
+
+export function makeImpact(scene, point, dir) {
+  const n = dir.clone().normalize()
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(0.34, 22),
+    new THREE.MeshBasicMaterial({ color: 0xe8ff7a, transparent: true, opacity: 0.95, side: THREE.DoubleSide }),
+  )
+  disc.position.copy(point).addScaledVector(n, -0.05)
+  disc.lookAt(point.clone().add(n))
+  scene.add(disc)
+  const light = new THREE.PointLight(0xffc14a, 2.4, 6)
+  light.position.copy(point)
+  scene.add(light)
+  return { mesh: disc, light, life: 0.14 }
 }
 
 export function makeMuzzle(scene, pos) {
