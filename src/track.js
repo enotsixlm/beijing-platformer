@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { toon, canvasTex } from './toon.js'
+import { toon, canvasTex, makeSky } from './toon.js'
 import { createCoin, createSneaker, createStickItem, createBoostPanel } from './models.js'
 
 function mulberry(seed) {
@@ -130,40 +130,46 @@ export const COURSES = [
 
 export const THEMES = {
   day: {
-    sky: 0x7ec8e3, fog: 0xb8dce8, fogNear: 180, fogFar: 520,
-    hemiSky: 0xfff4dc, hemiGround: 0x7bb36a, sun: 0xfff2c4, sunInt: 1.6,
-    road: 0x4a5160, curbA: 0xe8e4dc, curbB: 0xe03131, ground: 0x6db36a,
-    building: [0xf4efe4, 0xe8dcc8, 0xd9c4a8, 0xc9ddd8],
+    sky: 0x8fd4ee, fog: 0xc5e6f2, fogNear: 220, fogFar: 560,
+    hemiSky: 0xfff6e0, hemiGround: 0x7bb36a, sun: 0xfff2c4, sunInt: 1.7,
+    road: 0x5a6270, curbA: 0xf2eee6, curbB: 0xe8a33a, ground: 0x7ec45a,
+    building: [0xf7efe3, 0xf3d5c2, 0xe8d7b0, 0xd5ebe4, 0xc9d6f2],
+    skyTop: '#6ec4ea', skyHorizon: '#d7f0fa',
   },
   sunset: {
-    sky: 0xff8a5b, fog: 0xffb080, fogNear: 160, fogFar: 480,
-    hemiSky: 0xffd1a3, hemiGround: 0xc45a3a, sun: 0xff9955, sunInt: 1.8,
-    road: 0x3e4452, curbA: 0xffd28a, curbB: 0xff6b3d, ground: 0xc9784a,
-    building: [0x5a3a4a, 0x7a4a3a, 0x3a2a40, 0xd4a07a],
+    sky: 0xff9a62, fog: 0xffc090, fogNear: 180, fogFar: 520,
+    hemiSky: 0xffd8b0, hemiGround: 0xc45a3a, sun: 0xff9955, sunInt: 1.9,
+    road: 0x4a4558, curbA: 0xffe0a8, curbB: 0xff6b3d, ground: 0xd48452,
+    building: [0x6a3a4c, 0x8a5240, 0x3e2a48, 0xe0b090],
+    skyTop: '#ff7a4a', skyHorizon: '#ffd0a0',
   },
   rain: {
-    sky: 0x4d5d6e, fog: 0x6a7a88, fogNear: 80, fogFar: 340,
-    hemiSky: 0x9aacbb, hemiGround: 0x445566, sun: 0xc5d0d8, sunInt: 0.7,
-    road: 0x3a414c, curbA: 0x8aa0b0, curbB: 0x3d7ea6, ground: 0x4a5e4a,
-    building: [0x5a6670, 0x3e4a55, 0x6a7380, 0x2f3942],
+    sky: 0x5a6a7a, fog: 0x7a8a98, fogNear: 90, fogFar: 360,
+    hemiSky: 0xa8b8c6, hemiGround: 0x445566, sun: 0xc5d0d8, sunInt: 0.75,
+    road: 0x3a424c, curbA: 0x9aafbe, curbB: 0x3d7ea6, ground: 0x4e6350,
+    building: [0x5c6874, 0x424c58, 0x6e7884, 0x323a44],
+    skyTop: '#4a5a6a', skyHorizon: '#8aa0b0',
   },
   cool: {
-    sky: 0xffc9a3, fog: 0xffdcc0, fogNear: 140, fogFar: 500,
-    hemiSky: 0xffe6c8, hemiGround: 0x8899aa, sun: 0xffe0a8, sunInt: 1.5,
-    road: 0x5a6270, curbA: 0xffffff, curbB: 0xff8fab, ground: 0x8aa0b8,
+    sky: 0xffc9a3, fog: 0xffdcc0, fogNear: 160, fogFar: 540,
+    hemiSky: 0xffe6c8, hemiGround: 0x8899aa, sun: 0xffe0a8, sunInt: 1.55,
+    road: 0x6a7280, curbA: 0xffffff, curbB: 0xff8fab, ground: 0x8aa0b8,
     building: [0x6a7a8a, 0x445566, 0x9ab0c0, 0x2a3340],
+    skyTop: '#ffb080', skyHorizon: '#ffe4c8',
   },
   down: {
-    sky: 0x6ec4c8, fog: 0xa8dce0, fogNear: 120, fogFar: 420,
-    hemiSky: 0xe8fff8, hemiGround: 0x3d8a6a, sun: 0xfff6d0, sunInt: 1.4,
-    road: 0x3aa0c8, curbA: 0xe8d9a8, curbB: 0x5a8a4a, ground: 0x5aaa6a,
+    sky: 0x7ed0d4, fog: 0xb0e4e6, fogNear: 140, fogFar: 460,
+    hemiSky: 0xe8fff8, hemiGround: 0x3d8a6a, sun: 0xfff6d0, sunInt: 1.5,
+    road: 0x3aa0c8, curbA: 0xe8d9a8, curbB: 0x5a8a4a, ground: 0x62b868,
     building: [0xdce8c8, 0xb8cda0, 0x8aaa70],
+    skyTop: '#5eb8d0', skyHorizon: '#c8f0ee',
   },
   shiva: {
     sky: 0x3a1a70, fog: 0x5a2a90, fogNear: 220, fogFar: 640,
     hemiSky: 0xe0b0ff, hemiGround: 0x4a1860, sun: 0xff99ee, sunInt: 1.8,
     road: 0x5a40b0, curbA: 0xff77ff, curbB: 0x66ffff, ground: 0x281048,
     building: [0x3a2060, 0x552070, 0x1a1028, 0x883355],
+    skyTop: '#1a0838', skyHorizon: '#6a30a0',
   },
 }
 
@@ -333,19 +339,48 @@ function buildRoad(track, theme, themeId) {
   mesh.receiveShadow = true
   mesh.userData.noEdges = true
 
-  // curbs
+  const walk = []
+  const walkIdx = []
+  const walkN = []
+  const walkUv = []
+  const walkW = half + 2.2
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i]
+    const l = s.pos.clone().addScaledVector(s.right, -walkW)
+    const r = s.pos.clone().addScaledVector(s.right, walkW)
+    l.y += 0.015
+    r.y += 0.015
+    walk.push(l.x, l.y, l.z, r.x, r.y, r.z)
+    walkN.push(0, 1, 0, 0, 1, 0)
+    walkUv.push(0, i * 0.2, 1, i * 0.2)
+  }
+  for (let i = 0; i < samples.length - 1; i++) {
+    if (inGap(samples[i].t) || inGap(samples[i + 1].t)) continue
+    const a = i * 2
+    walkIdx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3)
+  }
+  const walkGeo = new THREE.BufferGeometry()
+  walkGeo.setAttribute('position', new THREE.Float32BufferAttribute(walk, 3))
+  walkGeo.setAttribute('normal', new THREE.Float32BufferAttribute(walkN, 3))
+  walkGeo.setAttribute('uv', new THREE.Float32BufferAttribute(walkUv, 2))
+  walkGeo.setIndex(walkIdx)
+  const walkMesh = new THREE.Mesh(walkGeo, toon(themeId === 'down' ? 0xc8e8a8 : themeId === 'shiva' ? 0x2a1848 : 0xe8e2d4))
+  walkMesh.receiveShadow = true
+  walkMesh.userData.noEdges = true
+
   const curbG = new THREE.Group()
-  const curbGeo = new THREE.BoxGeometry(0.45, 0.35, 2.2)
+  curbG.add(walkMesh)
+  const curbGeo = new THREE.BoxGeometry(0.22, 0.16, 2.1)
   const matA = toon(theme.curbA)
   const matB = toon(theme.curbB)
-    for (let i = 0; i < samples.length - 1; i += 2) {
+  for (let i = 0; i < samples.length - 1; i += 2) {
     if (inGap(samples[i].t)) continue
     const s = samples[i]
     for (const side of [-1, 1]) {
       const m = new THREE.Mesh(curbGeo, (i + (side > 0 ? 1 : 0)) % 2 ? matA : matB)
-      const p = s.pos.clone().addScaledVector(s.right, side * (half + 0.2))
+      const p = s.pos.clone().addScaledVector(s.right, side * (half + 0.12))
       m.position.copy(p)
-      m.position.y += 0.18
+      m.position.y += 0.1
       m.lookAt(p.clone().add(s.tangent))
       m.castShadow = true
       curbG.add(m)
@@ -401,19 +436,96 @@ function placeItems(track) {
   return items
 }
 
+function signTex(text, bg, fg) {
+  return canvasTex(160, 48, (g) => {
+    g.fillStyle = bg
+    g.fillRect(0, 0, 160, 48)
+    g.fillStyle = fg
+    g.font = 'bold 26px sans-serif'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(text, 80, 26)
+  })
+}
+
+const SHOP_SIGNS = [
+  ['ラーメン', '#c0392b', '#fff8ee'],
+  ['コンビニ', '#1e8449', '#fff8ee'],
+  ['花屋', '#e74c8c', '#fff8ee'],
+  ['弁当', '#d4a017', '#3a2a1c'],
+  ['カフェ', '#6f4e37', '#fff8ee'],
+  ['書店', '#2e4053', '#fff8ee'],
+  ['薬局', '#27ae60', '#fff8ee'],
+  ['パン', '#e67e22', '#fff8ee'],
+]
+
+function makeVending(x, y, z, facing) {
+  const g = new THREE.Group()
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.7, 0.55), toon(0xc0392b))
+  body.position.y = 0.85
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.9, 0.08), toon(0x2c3e50, { emissive: 0x112233 }))
+  panel.position.set(0, 1.1, 0.28)
+  const slot = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.12, 0.08), toon(0x1a1a1a))
+  slot.position.set(0, 0.35, 0.28)
+  g.add(body, panel, slot)
+  g.position.set(x, y, z)
+  g.lookAt(g.position.x + facing.x, y, g.position.z + facing.z)
+  return g
+}
+
+function makePole(x, y, z) {
+  const g = new THREE.Group()
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 6.2, 6), toon(0xc8c2b4))
+  pole.position.y = 3.1
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.08), toon(0xb8b2a4))
+  arm.position.set(0.6, 5.7, 0)
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.45, 0.25), toon(0x6a7a4a))
+  box.position.set(0.2, 4.6, 0)
+  g.add(pole, arm, box)
+  g.position.set(x, y, z)
+  return g
+}
+
+function makeTree(scale = 1) {
+  const g = new THREE.Group()
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 1.8, 6), toon(0x7a4e2c))
+  trunk.position.y = 0.9
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(1.15, 10, 8), toon(0x4cba5c))
+  crown.position.y = 2.3
+  const crown2 = new THREE.Mesh(new THREE.SphereGeometry(0.85, 8, 7), toon(0x3da34e))
+  crown2.position.set(0.45, 2.1, 0.2)
+  g.add(trunk, crown, crown2)
+  g.scale.setScalar(scale)
+  return g
+}
+
+function makeCloud() {
+  const g = new THREE.Group()
+  const m = toon(0xfffdf8)
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 6), m))
+  const a = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 6), m)
+  a.position.set(1.3, -0.1, 0.1)
+  const b = new THREE.Mesh(new THREE.SphereGeometry(1.0, 8, 6), m)
+  b.position.set(-1.2, -0.15, -0.1)
+  g.add(a, b)
+  g.userData.noOutline = true
+  return g
+}
+
 function addScenery(group, track, theme, themeId, rand) {
   const n = track.samples.length - 1
   const wtex = windowTex()
   const box = new THREE.BoxGeometry(1, 1, 1)
-  const mats = theme.building.map((c) => toon(c, themeId === 'shiva' ? { emissive: c, emissiveIntensity: 0.25 } : {}))
-  const winMat = toon(0xffffff, { map: wtex })
+  const mats = theme.building.map((c) => toon(c, themeId === 'shiva' ? { emissive: c, emissiveIntensity: 0.28 } : {}))
+  const winMat = new THREE.MeshBasicMaterial({ map: wtex, transparent: false })
+  const signs = SHOP_SIGNS.map(([t, bg, fg]) => new THREE.MeshBasicMaterial({ map: signTex(t, bg, fg) }))
 
-  const start = Math.round(themeId === 'cool' ? 3 : 2)
-  for (let i = 0; i < n; i += start) {
+  const stride = themeId === 'cool' ? 3 : 2
+  for (let i = 0; i < n; i += stride) {
     const s = track.samples[i]
     for (const side of [-1, 1]) {
-      if (rand() > 0.72) continue
-      const dist = track.width * 0.5 + 6 + rand() * 14
+      if (rand() > 0.78) continue
+      const dist = track.width * 0.5 + 5.5 + rand() * 12
       const p = s.pos.clone().addScaledVector(s.right, side * dist)
       if (themeId === 'cool') {
         const h = 28 + rand() * 50
@@ -426,43 +538,85 @@ function addScenery(group, track, theme, themeId, rand) {
         continue
       }
       if (themeId === 'down') {
-        const tree = new THREE.Group()
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2.2, 6), toon(0x6a4424))
-        trunk.position.y = 1.1
-        const crown = new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 6), toon(0x4cae54))
-        crown.position.y = 2.6
-        tree.add(trunk, crown)
+        const tree = makeTree(0.9 + rand() * 0.5)
         tree.position.copy(p)
         tree.position.y = s.pos.y
         group.add(tree)
         continue
       }
-      const h = 6 + rand() * (themeId === 'shiva' ? 28 : 18)
-      const bw = 4 + rand() * 6
-      const bd = 4 + rand() * 6
+
+      const h = 5.5 + rand() * (themeId === 'shiva' ? 26 : 14)
+      const bw = 4.2 + rand() * 5
+      const bd = 4.2 + rand() * 5
       const b = new THREE.Mesh(box, mats[Math.floor(rand() * mats.length)])
       b.scale.set(bw, h, bd)
       b.position.set(p.x, s.pos.y + h / 2, p.z)
       b.castShadow = b.receiveShadow = true
       group.add(b)
-      if (themeId === 'day' || themeId === 'sunset' || themeId === 'shiva') {
-        const face = new THREE.Mesh(new THREE.PlaneGeometry(bw * 0.85, h * 0.8), winMat)
-        face.position.set(p.x, s.pos.y + h / 2, p.z)
-        face.lookAt(s.pos.x, s.pos.y + h / 2, s.pos.z)
-        face.position.addScaledVector(s.right, -side * 0.05)
-        group.add(face)
+
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(bw * 0.82, h * 0.72), winMat)
+      face.position.set(p.x, s.pos.y + h / 2, p.z)
+      face.lookAt(s.pos.x, s.pos.y + h / 2, s.pos.z)
+      face.position.addScaledVector(s.right, -side * 0.08)
+      group.add(face)
+
+      if (themeId !== 'shiva' && rand() > 0.45 && h < 16) {
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.7), signs[Math.floor(rand() * signs.length)])
+        sign.position.copy(p)
+        sign.position.y = s.pos.y + 2.6
+        sign.position.addScaledVector(s.right, -side * (bw * 0.52 + 0.2))
+        sign.lookAt(s.pos.x, sign.position.y, s.pos.z)
+        group.add(sign)
+        const awning = new THREE.Mesh(new THREE.BoxGeometry(bw * 0.9, 0.08, 1.1), toon(0xe74c3c))
+        awning.position.copy(p)
+        awning.position.y = s.pos.y + 2.25
+        awning.position.addScaledVector(s.right, -side * (bw * 0.35))
+        group.add(awning)
       }
     }
   }
 
+  if (themeId === 'day' || themeId === 'sunset' || themeId === 'rain') {
+    for (let i = 6; i < n; i += 10) {
+      const s = track.samples[i]
+      const side = i % 20 < 10 ? 1 : -1
+      const p = s.pos.clone().addScaledVector(s.right, side * (track.width * 0.5 + 2.6))
+      group.add(makePole(p.x, s.pos.y, p.z))
+      if (i % 20 === 6) {
+        const v = makeVending(
+          p.x + s.right.x * side * 0.8, s.pos.y, p.z + s.right.z * side * 0.8,
+          s.right.clone().multiplyScalar(-side)
+        )
+        group.add(v)
+      }
+    }
+    for (let i = 8; i < n; i += 14) {
+      const s = track.samples[i]
+      const side = i % 28 < 14 ? -1 : 1
+      const tree = makeTree(0.85 + rand() * 0.35)
+      const p = s.pos.clone().addScaledVector(s.right, side * (track.width * 0.5 + 3.4))
+      tree.position.copy(p)
+      tree.position.y = s.pos.y
+      group.add(tree)
+    }
+  }
+
+  for (let i = 0; i < 10; i++) {
+    const c = makeCloud()
+    const s = track.samples[Math.floor(rand() * n)]
+    c.position.set(s.pos.x + (rand() - 0.5) * 80, 28 + rand() * 18, s.pos.z + (rand() - 0.5) * 80)
+    c.scale.setScalar(2.2 + rand() * 2.5)
+    group.add(c)
+  }
+
   if (themeId === 'shiva') {
-    const ringGeo = new THREE.TorusGeometry(18, 0.6, 8, 40)
-    const ringMat = toon(0x3ee0e8, { emissive: 0x3ee0e8, emissiveIntensity: 0.8 })
+    const ringGeo = new THREE.TorusGeometry(16, 0.55, 8, 40)
+    const ringMat = toon(0x3ee0e8, { emissive: 0x3ee0e8, emissiveIntensity: 0.9 })
     for (let i = 0; i < 5; i++) {
       const s = track.samples[Math.floor((i + 0.5) / 5 * n)]
       const ring = new THREE.Mesh(ringGeo, ringMat)
       ring.position.copy(s.pos)
-      ring.position.y += 8
+      ring.position.y += 7
       ring.lookAt(s.pos.clone().add(s.tangent))
       group.add(ring)
     }
@@ -487,6 +641,20 @@ export function buildCourse(scene, courseDef) {
 
   const group = new THREE.Group()
   scene.add(group)
+
+  const sky = makeSky(theme.skyTop || '#7ec8e3', theme.skyHorizon || '#d0eaf4')
+  group.add(sky)
+  if (courseDef.theme !== 'rain' && courseDef.theme !== 'shiva') {
+    const sunDisc = new THREE.Mesh(
+      new THREE.SphereGeometry(10, 16, 12),
+      new THREE.MeshBasicMaterial({
+        color: courseDef.theme === 'sunset' ? 0xff7a3a : 0xffe48a,
+        fog: false,
+      })
+    )
+    sunDisc.position.set(90, 72, -50)
+    group.add(sunDisc)
+  }
 
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(420, 48),

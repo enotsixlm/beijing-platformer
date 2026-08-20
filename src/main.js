@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { COURSES, THEMES, buildCourse, updateCourseFx, sampleAt, pointAt } from './track.js'
 import { DIFFS, spawnField, stepRacer, collectItems, tryDash, syncRacerMeshes, rankRacers, drawMinimap } from './racer.js'
-import { SHIBA_KINDS, createShiba, animateShiba } from './models.js'
+import { SHIBA_KINDS, createShiba, animateShiba, createMenuStage } from './models.js'
+import { makeSky } from './toon.js'
 import { initAudio, sfx } from './sfx.js'
 
 const PHYS_DT = 1 / 120
@@ -40,6 +41,7 @@ let selectedCourse = 0
 let selectedDiff = 'normal'
 let laser = { warn: 0, x: 0, mesh: null }
 let menuShiba = null
+let menuStage = null
 let menuKind = null
 
 const keys = new Set()
@@ -326,26 +328,34 @@ function showMenuShiba() {
   menuKind = selectedDog
   menuShiba.group.position.set(0, 0, 0)
   scene.add(menuShiba.group)
+  menuStage = createMenuStage()
+  menuStage.name = 'menuStage'
+  scene.add(menuStage)
+  const sky = makeSky('#6ec4ea', '#d7f0fa')
+  sky.name = 'menuSky'
+  scene.add(sky)
   applyTheme(THEMES.day)
-  if (!scene.getObjectByName('menuLight')) {
-    const h = new THREE.HemisphereLight(0xfff4dc, 0x7bb36a, 1.1)
-    h.name = 'menuLight'
-    scene.add(h)
-    const s = new THREE.DirectionalLight(0xfff2c4, 1.4)
-    s.name = 'menuSun'
-    s.position.set(8, 14, 6)
-    scene.add(s)
-  }
+  scene.fog = null
+  scene.background = new THREE.Color(0x8fd4ee)
+  const h = new THREE.HemisphereLight(0xfff6e0, 0x7bb36a, 1.15)
+  h.name = 'menuLight'
+  scene.add(h)
+  const s = new THREE.DirectionalLight(0xfff2c4, 1.55)
+  s.name = 'menuSun'
+  s.position.set(6, 12, 8)
+  s.castShadow = true
+  scene.add(s)
 }
 function hideMenuShiba() {
   if (menuShiba) {
     scene.remove(menuShiba.group)
     menuShiba = null
   }
-  const h = scene.getObjectByName('menuLight')
-  const s = scene.getObjectByName('menuSun')
-  if (h) scene.remove(h)
-  if (s) scene.remove(s)
+  for (const name of ['menuStage', 'menuSky', 'menuLight', 'menuSun']) {
+    const o = scene.getObjectByName(name)
+    if (o) scene.remove(o)
+  }
+  menuStage = null
 }
 
 function refreshMenu() {
@@ -547,10 +557,10 @@ function frame(now) {
 
   if (phase === 'menu') {
     if (menuShiba) {
-      animateShiba(menuShiba, { speed: 10, steer: Math.sin(now * 0.001) * 0.4, now, boost: false })
-      menuShiba.group.rotation.y = now * 0.0008
-      camera.position.set(3.2, 1.8, 4.4)
-      camera.lookAt(0, 0.5, 0)
+      animateShiba(menuShiba, { speed: 11, steer: Math.sin(now * 0.0012) * 0.5, now, boost: false })
+      menuShiba.group.rotation.y = now * 0.0007
+      camera.position.set(2.5, 1.45, 3.35)
+      camera.lookAt(0, 0.48, 0.15)
     }
     renderer.render(scene, camera)
     return
@@ -590,10 +600,10 @@ function frame(now) {
   if (player) {
     const fwdX = Math.sin(player.heading)
     const fwdZ = Math.cos(player.heading)
-    const dist = 8.4 + player.speed * 0.06
+    const dist = 7.0 + player.speed * 0.05
     const targetPos = new THREE.Vector3(
       player.pos.x - fwdX * dist,
-      player.pos.y + 4.4,
+      player.pos.y + 3.5,
       player.pos.z - fwdZ * dist
     )
     const targetLook = new THREE.Vector3(

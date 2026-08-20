@@ -401,7 +401,7 @@ export function syncRacerMeshes(r, now) {
   hands.y += 0.15
   updateLeash(r.leash, collar, hands)
 
-  r.tag.position.set(r.pos.x, r.pos.y + 1.35, r.pos.z)
+  r.tag.position.set(r.pos.x, r.pos.y + 1.55, r.pos.z)
 }
 
 export function rankRacers(racers, track) {
