@@ -1,14 +1,10 @@
-# 北京平台跳跃 Beijing Platformer
+# Wanaka Eval · 34 个游戏 Demo
 
-熊猫跑酷:从天安门一路跳到鸟巢的剪纸风 3D 平台跳跃游戏,基于 three.js,美术全部程序生成。
+同一个网站里收录了 34 个评测关卡：首页是目录，点卡片进入对应游戏，左上角返回目录。
 
 **在线试玩:** https://enotsixlm.github.io/beijing-platformer/
 
-![title](shots/0-title.png)
-
-## 路线
-
-天安门 → 胡同 → 灯笼巷 → 天坛 → CBD → 水立方 → 鸟巢
+原北京跑酷仍在 [beijing.html](./beijing.html)。
 
 ## 本地运行
 
@@ -17,4 +13,4 @@ npm install
 npm run dev
 ```
 
-冒烟测试:`npm run smoke`
+打开终端提示的地址即可。生产构建：`npm run build && npm run preview`。
