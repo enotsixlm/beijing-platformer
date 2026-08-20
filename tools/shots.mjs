@@ -1,48 +1,68 @@
-// 截几个关键场景图,人工目验画面
 import { spawn } from 'node:child_process'
-import { chromium } from 'playwright-core'
-import { fileURLToPath } from 'node:url'
+import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { chromium } from 'playwright-core'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'shots')
 mkdirSync(outDir, { recursive: true })
-const PORT = 5212
+const PORT = 5220 + Math.floor(Math.random() * 30)
+
+function findChrome() {
+  const list = [
+    process.env.PLAYWRIGHT_CHROMIUM,
+    process.env.CHROME_PATH,
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ].filter(Boolean)
+  for (const p of list) if (existsSync(p)) return p
+  return null
+}
 
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'pipe' })
 await new Promise((res, rej) => {
-  vite.stdout.on('data', (d) => { if (String(d).includes('Local:')) res() })
+  const onData = (d) => { if (String(d).includes('Local:')) res() }
+  vite.stdout.on('data', onData)
+  vite.stderr.on('data', onData)
   vite.on('exit', (c) => rej(new Error('vite exited ' + c)))
   setTimeout(() => rej(new Error('vite start timeout')), 20000)
 })
 
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({
+  executablePath: findChrome() || undefined,
+  args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
+})
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
   await page.goto(`http://localhost:${PORT}/`)
   await page.waitForFunction('window.__game && window.__game.ready', null, { timeout: 30000 })
   await page.screenshot({ path: join(outDir, '0-title.png') })
-  await page.evaluate('window.__game.start()')
-
-  const spots = [
-    ['1-start', 0, 0, 14],
-    ['2-tiananmen-top', 6, 11.5, -14.7],
-    ['3-hutong', 0, 5.4, -70.5],
-    ['4-lanterns', 0, 8.4, -113.5],
-    ['5-temple', 0, 5.0, -143],
-    ['6-cbd', 0, 17.5, -197],
-    ['7-watercube', 0, 11.5, -262],
-    ['8-birdsnest', 0, 6.5, -299],
-  ]
-  for (const [name, x, y, z] of spots) {
-    await page.evaluate(`window.__game.teleport(${x}, ${y}, ${z})`)
-    await page.waitForTimeout(1400)
-    await page.screenshot({ path: join(outDir, name + '.png') })
-    console.log('shot', name)
-  }
+  await page.evaluate(() => {
+    window.__game.start()
+    window.__game.advance(300)
+  })
+  await page.screenshot({ path: join(outDir, '1-range.png') })
+  await page.evaluate(() => {
+    window.__game.teleport(-2.5, 1.05, -6)
+    window.__game.aimAt(-2.5, 3.2, -16.2)
+    window.__game.slot(1)
+    window.__game.holdFire(true)
+    window.__game.advance(500)
+    window.__game.holdFire(false)
+  })
+  await page.screenshot({ path: join(outDir, '2-shoot.png') })
+  await page.evaluate(() => {
+    window.__game.slot(3)
+    window.__game.teleport(8, 1.05, -9)
+    window.__game.aimAt(21, 3.2, -9)
+    window.__game.fire()
+    window.__game.advance(900)
+  })
+  await page.screenshot({ path: join(outDir, '3-carve.png') })
 } finally {
-  await browser.close()
-  vite.kill()
+  await browser.close().catch(() => {})
+  vite.kill('SIGKILL')
 }

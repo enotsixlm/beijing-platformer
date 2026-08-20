@@ -1,200 +1,225 @@
 import * as THREE from 'three'
-import { toon } from './toon.js'
+import { PLAYER } from './config.js'
 
-// ---------- 熊猫主角 ----------
-export function createPandaMesh() {
+function box(parent, x, y, z, w, h, d, mat) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
+  m.position.set(x, y, z)
+  m.castShadow = true
+  parent.add(m)
+  return m
+}
+
+function mat(color, emissive = 0x000000, ei = 0) {
+  return new THREE.MeshLambertMaterial({ color, emissive, emissiveIntensity: ei })
+}
+
+export function createCowboy() {
+  const root = new THREE.Group()
+  const L = new THREE.Group()
+  root.add(L)
+
+  const leather = mat(0xa45a2a)
+  const leatherD = mat(0x7a3e18)
+  const denim = mat(0x3f74b0)
+  const skin = mat(0xefc39a)
+  const boot = mat(0x5a3218)
+  const pack = mat(0x8a9098)
+  const hat = mat(0x8a4a1c)
+
+  box(L, -0.16, 0.12, 0.04, 0.22, 0.24, 0.34, boot)
+  box(L, 0.16, 0.12, 0.04, 0.22, 0.24, 0.34, boot)
+  box(L, -0.16, 0.46, 0.0, 0.24, 0.48, 0.28, denim)
+  box(L, 0.16, 0.46, 0.0, 0.24, 0.48, 0.28, denim)
+  box(L, 0, 1.02, 0, 0.62, 0.62, 0.36, leather)
+  box(L, 0, 0.74, 0.02, 0.56, 0.16, 0.38, leatherD)
+  const armL = box(L, -0.46, 1.00, 0.04, 0.2, 0.56, 0.2, leather)
+  const armR = box(L, 0.46, 1.00, 0.04, 0.2, 0.56, 0.2, leather)
+  box(L, 0, 1.42, 0.02, 0.36, 0.22, 0.28, pack)
+  box(L, 0, 1.58, -0.16, 0.42, 0.42, 0.36, skin)
+  box(L, 0, 1.86, -0.16, 0.46, 0.18, 0.46, hat)
+  box(L, 0, 1.78, -0.16, 0.86, 0.08, 0.86, hat)
+  box(L, 0, 1.22, 0.22, 0.5, 0.42, 0.18, pack)
+
+  const weaponRoot = new THREE.Group()
+  weaponRoot.position.set(0.42, 1.12, -0.28)
+  L.add(weaponRoot)
+
+  const guns = {
+    cannon: makeGun('cannon'),
+    autogun: makeGun('autogun'),
+    scattergun: makeGun('scattergun'),
+    blockbuster: makeGun('blockbuster'),
+  }
+  for (const g of Object.values(guns)) {
+    g.visible = false
+    weaponRoot.add(g)
+  }
+  guns.cannon.visible = true
+
+  return { root, body: L, armL, armR, weaponRoot, guns }
+}
+
+function makeGun(kind) {
   const g = new THREE.Group()
-  const white = toon(0xf7f4ee)
-  const black = toon(0x2b2b2e)
-
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 12), white)
-  body.scale.set(1, 1.1, 0.9)
-  body.position.y = 0.55
-  g.add(body)
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 12), white)
-  head.position.y = 1.18
-  g.add(head)
-
-  // 耳朵
-  for (const s of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), black)
-    ear.position.set(0.22 * s, 1.46, 0)
-    g.add(ear)
-  }
-  // 眼圈(朝 -Z 前方)
-  for (const s of [-1, 1]) {
-    const patch = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), black)
-    patch.scale.set(1, 1.3, 0.55)
-    patch.position.set(0.13 * s, 1.22, -0.28)
-    g.add(patch)
-  }
-  // 鼻子
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), black)
-  nose.position.set(0, 1.1, -0.33)
-  g.add(nose)
-  // 四肢
-  const limbGeo = new THREE.SphereGeometry(0.13, 8, 8)
-  const arms = []
-  for (const s of [-1, 1]) {
-    const arm = new THREE.Mesh(limbGeo, black)
-    arm.position.set(0.38 * s, 0.72, 0)
-    g.add(arm)
-    arms.push(arm)
-    const leg = new THREE.Mesh(limbGeo, black)
-    leg.scale.set(1.1, 1.25, 1.1)
-    leg.position.set(0.2 * s, 0.14, 0)
-    g.add(leg)
-  }
-  // 红围巾,一点北京红
-  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.07, 8, 14), toon(0xe03131))
-  scarf.rotation.x = Math.PI / 2
-  scarf.position.y = 0.95
-  g.add(scarf)
-
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true })
-  return { group: g, arms }
-}
-
-// ---------- 平台跳跃物理 ----------
-export const P = {
-  runSpeed: 8,
-  gravity: 26,
-  jumpV: 10.4,
-  doubleJumpV: 9.6,
-  coyote: 0.12,
-  jumpBuffer: 0.14,
-  halfW: 0.32,   // 碰撞盒半宽
-  height: 1.5,   // 碰撞盒高
-}
-
-export function createPlayerState(x, y, z) {
-  return {
-    pos: new THREE.Vector3(x, y, z),
-    vx: 0, vy: 0, vz: 0,
-    heading: Math.PI, // 朝 -Z
-    grounded: true,
-    groundC: null,     // 脚下的碰撞体(用于移动平台载运)
-    sinceGround: 0,
-    jumpBufferT: 0,
-    canDouble: true,
-    justJumped: false, // 本帧起跳(拉伸动画用)
-    justLanded: false, // 本帧落地(压扁动画用)
-  }
-}
-
-// input: { x, z, jumpPressed } x/z 为相机系归一化移动向量(世界系)
-export function stepPlayer(p, input, dt, colliders) {
-  // ---- 水平速度 ----
-  const tx = input.x * P.runSpeed
-  const tz = input.z * P.runSpeed
-  if (p.grounded) {
-    p.vx = tx
-    p.vz = tz
+  const dark = mat(0x2a2e33)
+  const mid = mat(0x4a5158)
+  const acc = mat(0xff7a18, 0xff6a10, 0.35)
+  const glow = mat(0xffc14a, 0xff9a1a, 1.2)
+  if (kind === 'cannon') {
+    box(g, 0, 0, -0.22, 0.22, 0.28, 0.5, dark)
+    box(g, 0, 0.02, -0.62, 0.16, 0.16, 0.38, mid)
+    box(g, 0.12, -0.12, -0.1, 0.1, 0.22, 0.16, acc)
+    box(g, 0, 0.02, -0.84, 0.14, 0.14, 0.12, glow)
+  } else if (kind === 'autogun') {
+    box(g, 0, 0.02, -0.35, 0.16, 0.2, 0.9, dark)
+    box(g, 0, 0.12, -0.05, 0.12, 0.14, 0.28, mid)
+    box(g, 0.1, -0.08, -0.05, 0.08, 0.2, 0.18, acc)
+    box(g, 0, 0.02, -0.86, 0.1, 0.1, 0.16, glow)
+  } else if (kind === 'scattergun') {
+    box(g, 0, 0, -0.28, 0.28, 0.24, 0.62, dark)
+    box(g, 0.1, 0.08, -0.55, 0.1, 0.1, 0.36, mid)
+    box(g, -0.1, 0.08, -0.55, 0.1, 0.1, 0.36, mid)
+    box(g, 0, 0.02, -0.72, 0.3, 0.2, 0.16, glow)
   } else {
-    const k = 1 - Math.exp(-5 * dt)
-    p.vx += (tx - p.vx) * k
-    p.vz += (tz - p.vz) * k
+    box(g, 0.1, 0.12, -0.2, 0.28, 0.28, 0.7, dark)
+    box(g, 0.1, 0.12, -0.62, 0.22, 0.22, 0.28, acc)
+    box(g, 0.1, 0.12, -0.82, 0.18, 0.18, 0.18, glow)
   }
-  if (input.x || input.z) p.heading = Math.atan2(input.x, input.z)
+  g.userData.muzzle = new THREE.Vector3(0, 0.02, kind === 'blockbuster' ? -0.92 : -0.88)
+  return g
+}
 
-  // ---- 跳跃(缓冲 + 土狼时间 + 二段跳) ----
+export function createPlayerState() {
+  return {
+    pos: new THREE.Vector3(0, 1.02, 12),
+    vel: new THREE.Vector3(),
+    yaw: 0,
+    pitch: -0.08,
+    grounded: true,
+    sinceGround: 0,
+    dashT: 0,
+    dashCd: 0,
+    airDash: true,
+    hp: 100,
+    shake: 0,
+  }
+}
+
+export function lookDir(yaw, pitch, out = new THREE.Vector3()) {
+  const cp = Math.cos(pitch)
+  return out.set(Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp)
+}
+
+export function rightDir(yaw, out = new THREE.Vector3()) {
+  return out.set(Math.cos(yaw), 0, Math.sin(yaw))
+}
+
+export function stepPlayer(p, input, dt, solidAt) {
+  lookDir(p.yaw, 0) // yaw-only for move
+  const fwd = new THREE.Vector3(Math.sin(p.yaw), 0, -Math.cos(p.yaw))
+  const right = rightDir(p.yaw)
+  let mx = input.x
+  let mz = input.z
+  const len = Math.hypot(mx, mz)
+  if (len > 1) { mx /= len; mz /= len }
+
+  const wish = new THREE.Vector3()
+  wish.addScaledVector(fwd, mz).addScaledVector(right, mx)
+  const speed = PLAYER.runSpeed
+  const acc = p.grounded ? PLAYER.accel : PLAYER.airAccel
+
+  if (p.dashT > 0) {
+    p.dashT -= dt
+    const d = p.dashDir || fwd
+    p.vel.x = d.x * PLAYER.dashSpeed
+    p.vel.z = d.z * PLAYER.dashSpeed
+  } else {
+    const tx = wish.x * speed
+    const tz = wish.z * speed
+    p.vel.x += (tx - p.vel.x) * Math.min(1, acc * dt)
+    p.vel.z += (tz - p.vel.z) * Math.min(1, acc * dt)
+  }
+
+  if (input.dash && p.dashCd <= 0 && (p.grounded || p.airDash)) {
+    const d = wish.lengthSq() > 0.01 ? wish.clone().normalize() : fwd.clone()
+    p.dashDir = d
+    p.dashT = PLAYER.dashTime
+    p.dashCd = PLAYER.dashCooldown
+    if (!p.grounded) p.airDash = false
+    p.justDashed = true
+  } else {
+    p.justDashed = false
+  }
+  p.dashCd = Math.max(0, p.dashCd - dt)
+
+  if (p.grounded) p.sinceGround = 0
+  else p.sinceGround += dt
+
   p.justJumped = false
-  if (input.jumpPressed) p.jumpBufferT = P.jumpBuffer
-  else p.jumpBufferT -= dt
-  p.sinceGround = p.grounded ? 0 : p.sinceGround + dt
-
-  if (p.jumpBufferT > 0) {
-    if (p.grounded || p.sinceGround < P.coyote) {
-      p.vy = P.jumpV
-      p.grounded = false
-      p.sinceGround = P.coyote
-      p.jumpBufferT = 0
-      p.canDouble = true
-      p.justJumped = true
-    } else if (p.canDouble) {
-      p.vy = P.doubleJumpV
-      p.canDouble = false
-      p.jumpBufferT = 0
-      p.justJumped = true
-    }
+  if (input.jump && (p.grounded || p.sinceGround < PLAYER.coyote)) {
+    p.vel.y = PLAYER.jumpV
+    p.grounded = false
+    p.sinceGround = PLAYER.coyote
+    p.justJumped = true
   }
 
-  // ---- 重力 + 积分 ----
-  p.vy -= P.gravity * dt
-  if (p.vy < -30) p.vy = -30
-  p.pos.x += p.vx * dt
-  p.pos.y += p.vy * dt
-  p.pos.z += p.vz * dt
+  p.vel.y -= PLAYER.gravity * dt
+  if (p.vel.y < -28) p.vel.y = -28
+
+  p.pos.x += p.vel.x * dt
+  p.pos.y += p.vel.y * dt
+  p.pos.z += p.vel.z * dt
 
   const wasGrounded = p.grounded
   p.grounded = false
-  p.groundC = null
+  for (let pass = 0; pass < 3; pass++) resolveVoxels(p, solidAt)
+  if (!wasGrounded && p.grounded) p.justLanded = true
+  else p.justLanded = false
 
-  // ---- 全局地面 y=0 ----
-  if (p.pos.y < 0) {
-    p.pos.y = 0
-    if (p.vy < 0) p.vy = 0
-    p.grounded = true
-  }
+  if (p.grounded) p.airDash = true
+}
 
-  // ---- AABB 碰撞(两轮消除穿插) ----
-  for (let pass = 0; pass < 2; pass++) {
-    for (const c of colliders) {
-      const pxMin = p.pos.x - P.halfW, pxMax = p.pos.x + P.halfW
-      const pyMin = p.pos.y, pyMax = p.pos.y + P.height
-      const pzMin = p.pos.z - P.halfW, pzMax = p.pos.z + P.halfW
-      if (pxMax <= c.min.x || pxMin >= c.max.x) continue
-      if (pyMax <= c.min.y || pyMin >= c.max.y) continue
-      if (pzMax <= c.min.z || pzMin >= c.max.z) continue
-      // 各轴最小推出量
-      const pushX = pxMax - c.min.x < c.max.x - pxMin ? c.min.x - pxMax : c.max.x - pxMin
-      const pushY = pyMax - c.min.y < c.max.y - pyMin ? c.min.y - pyMax : c.max.y - pyMin
-      const pushZ = pzMax - c.min.z < c.max.z - pzMin ? c.min.z - pzMax : c.max.z - pzMin
-      const ax = Math.abs(pushX), ay = Math.abs(pushY), az = Math.abs(pushZ)
-      if (ay <= ax && ay <= az) {
-        p.pos.y += pushY
-        if (pushY > 0 && p.vy <= 0) { p.grounded = true; p.groundC = c; p.vy = 0 }
-        else if (pushY < 0 && p.vy > 0) p.vy = 0
-      } else if (ax <= az) {
-        p.pos.x += pushX
-        p.vx = 0
-      } else {
-        p.pos.z += pushZ
-        p.vz = 0
+function resolveVoxels(p, solidAt) {
+  const hw = PLAYER.halfW
+  const h = PLAYER.height
+  const minX = p.pos.x - hw, maxX = p.pos.x + hw
+  const minY = p.pos.y, maxY = p.pos.y + h
+  const minZ = p.pos.z - hw, maxZ = p.pos.z + hw
+  const x0 = Math.floor(minX), x1 = Math.floor(maxX - 1e-6)
+  const y0 = Math.floor(minY), y1 = Math.floor(maxY - 1e-6)
+  const z0 = Math.floor(minZ), z1 = Math.floor(maxZ - 1e-6)
+  for (let iy = y0; iy <= y1; iy++) {
+    for (let iz = z0; iz <= z1; iz++) {
+      for (let ix = x0; ix <= x1; ix++) {
+        if (!solidAt(ix, iy, iz)) continue
+        const cx0 = ix, cx1 = ix + 1
+        const cy0 = iy, cy1 = iy + 1
+        const cz0 = iz, cz1 = iz + 1
+        if (maxX <= cx0 || minX >= cx1 || maxY <= cy0 || minY >= cy1 || maxZ <= cz0 || minZ >= cz1) continue
+        const pushX = maxX - cx0 < cx1 - minX ? cx0 - maxX : cx1 - minX
+        const pushY = maxY - cy0 < cy1 - minY ? cy0 - maxY : cy1 - minY
+        const pushZ = maxZ - cz0 < cz1 - minZ ? cz0 - maxZ : cz1 - minZ
+        const ax = Math.abs(pushX), ay = Math.abs(pushY), az = Math.abs(pushZ)
+        if (ay <= ax && ay <= az) {
+          p.pos.y += pushY
+          if (pushY > 0 && p.vel.y <= 0) { p.grounded = true; p.vel.y = 0 }
+          else if (pushY < 0 && p.vel.y > 0) p.vel.y = 0
+        } else if (ax <= az) {
+          p.pos.x += pushX
+          p.vel.x = 0
+        } else {
+          p.pos.z += pushZ
+          p.vel.z = 0
+        }
       }
     }
   }
-
-  if (p.grounded) p.canDouble = true
-  p.justLanded = p.grounded && !wasGrounded
 }
 
-// ---------- 网格同步(含挤压拉伸小动画) ----------
-export function syncPandaMesh(p, mesh, now) {
-  const g = mesh.group
-  g.position.copy(p.pos)
-  g.rotation.y = p.heading + Math.PI // 模型脸朝 -Z,heading 是运动方向
-
-  // 跳跃拉伸 / 落地压扁
-  if (p.justJumped) g.userData.squash = { t: 0, mode: 1 }
-  if (p.justLanded) g.userData.squash = { t: 0, mode: -1 }
-  const s = g.userData.squash
-  if (s) {
-    s.t += 1 / 60
-    const k = Math.max(0, 1 - s.t / 0.22)
-    const amt = 0.18 * k * s.mode
-    g.scale.set(1 - amt * 0.6, 1 + amt, 1 - amt * 0.6)
-    if (k <= 0) { g.userData.squash = null; g.scale.set(1, 1, 1) }
-  }
-  // 跑步摆臂
-  const speed = Math.hypot(p.vx, p.vz)
-  if (p.grounded && speed > 1) {
-    const sw = Math.sin(now * 0.018) * 0.25
-    mesh.arms[0].position.z = sw
-    mesh.arms[1].position.z = -sw
-  } else {
-    mesh.arms[0].position.z = 0
-    mesh.arms[1].position.z = 0
-  }
+export function syncCowboy(p, mesh, now, moving) {
+  mesh.root.position.copy(p.pos)
+  mesh.root.rotation.y = p.yaw
+  const bob = moving && p.grounded ? Math.sin(now * 0.012) * 0.035 : 0
+  mesh.body.position.y = bob
+  mesh.body.rotation.x = p.dashT > 0 ? 0.12 : 0
 }

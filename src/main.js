@@ -1,324 +1,382 @@
 import * as THREE from 'three'
-import { buildLevel, updateMovers } from './level.js'
-import { createPandaMesh, createPlayerState, stepPlayer, syncPandaMesh, P } from './player.js'
-import { applyPaperEdges } from './paper.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { PLAYER, WEAPONS, WORLD } from './config.js'
+import { createWorld, fillArena, createVoxelView, rayVoxel } from './voxel.js'
+import { createCowboy, createPlayerState, lookDir, rightDir, stepPlayer, syncCowboy } from './player.js'
+import { createDebris, createPuffs } from './debris.js'
+import { createDummies, updateDummies } from './dummies.js'
+import {
+  createLoadout, currentWeapon, setSlot, startReload, stepLoadout,
+  tryFire, stepRockets, makeTracer, makeMuzzle,
+} from './combat.js'
+import { paintWeaponIcons, showDamage, bindHud, syncHud } from './hud.js'
+import { createAudio } from './audio.js'
+import { addDecor, stepDecor } from './decor.js'
 
-const PHYS_DT = 1 / 120
+const PHYS = 1 / 120
 
-// ---------- 渲染基础 ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true })
-renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+renderer.setSize(innerWidth, innerHeight)
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.2
+renderer.toneMappingExposure = 0.92
 renderer.domElement.id = 'game'
 document.body.prepend(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xb5d9ec)
-scene.fog = new THREE.Fog(0xd3e7f0, 260, 1200)
+scene.background = new THREE.Color(0x05080c)
+scene.fog = new THREE.Fog(0x05080c, 28, 78)
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1500)
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.08, 200)
 
-const hemi = new THREE.HemisphereLight(0xd6ecff, 0x8fb573, 1.1)
+const hemi = new THREE.HemisphereLight(0x4aa0c8, 0x0a1016, 0.55)
 scene.add(hemi)
-const sun = new THREE.DirectionalLight(0xfff4da, 1.7)
-sun.castShadow = true
-sun.shadow.mapSize.set(2048, 2048)
-sun.shadow.camera.left = -80
-sun.shadow.camera.right = 80
-sun.shadow.camera.top = 80
-sun.shadow.camera.bottom = -80
-sun.shadow.camera.far = 400
-scene.add(sun, sun.target)
+const key = new THREE.DirectionalLight(0xcfe8ff, 0.55)
+key.position.set(18, 28, 12)
+key.castShadow = true
+key.shadow.mapSize.set(1024, 1024)
+key.shadow.camera.near = 2
+key.shadow.camera.far = 80
+key.shadow.camera.left = key.shadow.camera.bottom = -30
+key.shadow.camera.right = key.shadow.camera.top = 30
+scene.add(key)
+
+const fill = new THREE.PointLight(0x2ee8ff, 1.25, 46, 1.6)
+fill.position.set(0, 3.2, 4)
+scene.add(fill)
+
+let composer = null
+try {
+  composer = new EffectComposer(renderer)
+  composer.addPass(new RenderPass(scene, camera))
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.38, 0.72)
+  composer.addPass(bloom)
+  composer.addPass(new OutputPass())
+} catch {
+  composer = null
+}
 
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight
+  camera.aspect = innerWidth / innerHeight
   camera.updateProjectionMatrix()
-  renderer.setSize(window.innerWidth, window.innerHeight)
+  renderer.setSize(innerWidth, innerHeight)
+  composer?.setSize(innerWidth, innerHeight)
 })
 
-// ---------- 关卡与玩家 ----------
-const level = buildLevel(scene)
-const player = createPlayerState(0, 0, level.startZ)
-const panda = createPandaMesh()
-scene.add(panda.group)
+const world = createWorld()
+fillArena(world)
+const voxels = createVoxelView(scene)
+voxels.rebuild(world)
 
-let respawn = { pos: new THREE.Vector3(0, 0, level.startZ), name: '天安门广场' }
-let coinCount = 0
-let phase = 'ready' // ready → play → win
-let startT = 0
-let winTime = null
+const player = createPlayerState()
+const cowboy = createCowboy()
+scene.add(cowboy.root)
+const rim = new THREE.PointLight(0xffd8a8, 1.35, 8, 2)
+cowboy.root.add(rim)
+rim.position.set(0.6, 1.6, 1.1)
 
-applyPaperEdges(scene)
+const debris = createDebris(scene)
+const puffs = createPuffs(scene)
+const dummies = createDummies(scene)
+const decor = addDecor(scene)
+const loadout = createLoadout()
+const rockets = []
+const tracers = []
+const flashes = []
+const audio = createAudio()
+const hud = bindHud()
+paintWeaponIcons(hud.slots.map((s) => s.querySelector('canvas')))
 
-// ---------- 输入 ----------
+const combatCtx = {
+  world, dummies, debris, scene, rockets,
+  loadout, origin: new THREE.Vector3(), aim: new THREE.Vector3(),
+  fireHeld: false, firePressed: false,
+  dirty: false, carved: 0,
+  onExplode(p) {
+    player.shake = Math.max(player.shake, 0.38)
+    audio.boom()
+    showDamage(hud.dmgLayer, renderer, camera, p, 18)
+  },
+}
+
 const keys = new Set()
-let jumpPressed = false
-let anyKeyHook = null
+const input = { x: 0, z: 0, jump: false, dash: false }
+let jumpQueued = false
+let dashQueued = false
+let fireHeld = false
+let fireQueued = false
+let phase = 'ready'
+let pointerLocked = false
+let frames = 0
+let fps = 60
+let fpsT = 0
+let fpsN = 0
+
 window.addEventListener('keydown', (e) => {
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault()
+  if (['Space', 'ShiftLeft', 'ShiftRight'].includes(e.code)) e.preventDefault()
   if (e.repeat) return
   keys.add(e.code)
-  initAudio()
-  if (anyKeyHook) { const h = anyKeyHook; anyKeyHook = null; h() }
-  if (e.code === 'Space') jumpPressed = true
-  if (e.code === 'KeyR') {
-    if (phase === 'win') location.reload()
-    else doRespawn(false)
-  }
+  audio.init()
+  if (e.code === 'Space') jumpQueued = true
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') dashQueued = true
+  if (e.code === 'KeyR') { if (startReload(loadout)) audio.reload() }
+  if (e.code === 'Digit1') setSlot(loadout, 0)
+  if (e.code === 'Digit2') setSlot(loadout, 1)
+  if (e.code === 'Digit3') setSlot(loadout, 2)
+  if (e.code === 'Digit4') setSlot(loadout, 3)
 })
 window.addEventListener('keyup', (e) => keys.delete(e.code))
+window.addEventListener('mousedown', (e) => {
+  if (e.button === 0) { fireHeld = true; fireQueued = true }
+})
+window.addEventListener('mouseup', (e) => { if (e.button === 0) fireHeld = false })
+window.addEventListener('wheel', (e) => {
+  const dir = e.deltaY > 0 ? 1 : -1
+  setSlot(loadout, (loadout.slot + dir + 4) % 4)
+})
+window.addEventListener('mousemove', (e) => {
+  if (!pointerLocked || phase !== 'play') return
+  player.yaw -= e.movementX * PLAYER.mouseSens
+  player.pitch -= e.movementY * PLAYER.mouseSens
+  player.pitch = Math.max(-1.15, Math.min(1.2, player.pitch))
+})
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === renderer.domElement
+})
 
-let camYaw = Math.PI // 朝 -Z(向北)
+function startGame() {
+  phase = 'play'
+  hud.overlay.classList.add('hidden')
+  audio.init()
+  renderer.domElement.requestPointerLock?.()
+}
 
-function readInput() {
+hud.overlay.addEventListener('click', startGame)
+
+function readMove() {
   const f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0)
   const r = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0)
-  const fx = Math.sin(camYaw), fz = Math.cos(camYaw)
-  const rx = Math.sin(camYaw - Math.PI / 2), rz = Math.cos(camYaw - Math.PI / 2)
-  let x = fx * f + rx * r
-  let z = fz * f + rz * r
-  const len = Math.hypot(x, z)
-  if (len > 1) { x /= len; z /= len }
-  const jp = jumpPressed
-  jumpPressed = false
-  return { x, z, jumpPressed: jp }
+  return { x: r, z: f }
 }
 
-// 测试钩子:无头测试可注入输入/传送/读状态
-window.__game = {
-  ready: false,
-  input: null, // {x,z,jumpPressed} 覆盖键盘
-  teleport(x, y, z) {
-    player.pos.set(x, y, z)
-    player.vx = player.vy = player.vz = 0
-  },
-  start() { if (anyKeyHook) { const h = anyKeyHook; anyKeyHook = null; h() } },
-  state() {
-    return {
-      phase, coinCount,
-      pos: { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2) },
-      grounded: player.grounded,
-      checkpoint: respawn.name,
-      frames,
+function solidCell(ix, iy, iz) {
+  return world.get(ix - WORLD.originX, iy - WORLD.originY, iz - WORLD.originZ) !== 0
+}
+
+const _look = new THREE.Vector3()
+const _right = new THREE.Vector3()
+const _camTarget = new THREE.Vector3()
+const _desired = new THREE.Vector3()
+const camPos = new THREE.Vector3(0, 4, 16)
+
+function desiredCamera() {
+  lookDir(player.yaw, player.pitch, _look)
+  rightDir(player.yaw, _right)
+  _camTarget.copy(player.pos)
+  _camTarget.y += PLAYER.camHeight
+  _camTarget.addScaledVector(_right, PLAYER.camShoulder)
+  _desired.copy(_camTarget).addScaledVector(_look, -PLAYER.camDist)
+  const hit = rayVoxel(world, _camTarget, _desired.clone().sub(_camTarget).normalize(), PLAYER.camDist)
+  if (hit && hit.t < PLAYER.camDist - 0.2) {
+    _desired.copy(_camTarget).addScaledVector(_look, -(Math.max(0.45, hit.t - 0.25)))
+  }
+  return _desired
+}
+
+function snapCamera() {
+  camPos.copy(desiredCamera())
+  camera.position.copy(camPos)
+  camera.lookAt(_camTarget.clone().addScaledVector(_look, 6))
+}
+
+function updateCamera(dt) {
+  desiredCamera()
+  camPos.lerp(_desired, 1 - Math.exp(-14 * dt))
+  if (player.shake > 0) {
+    camPos.x += (Math.random() - 0.5) * player.shake
+    camPos.y += (Math.random() - 0.5) * player.shake * 0.6
+    player.shake *= Math.exp(-8 * dt)
+  }
+  camera.position.copy(camPos)
+  camera.lookAt(_camTarget.clone().addScaledVector(_look, 6))
+}
+
+function muzzleWorld() {
+  const gun = cowboy.guns[currentWeapon(loadout).id]
+  const local = gun.userData.muzzle.clone()
+  return gun.localToWorld(local)
+}
+
+function handleFire() {
+  lookDir(player.yaw, player.pitch, combatCtx.aim)
+  combatCtx.origin.copy(camera.position).addScaledVector(combatCtx.aim, 0.9)
+  combatCtx.fireHeld = fireHeld || !!window.__game.input?.fireHeld
+  combatCtx.firePressed = fireQueued || !!window.__game.input?.fire
+  const result = tryFire(combatCtx)
+  if (result) {
+    fireQueued = false
+    if (window.__game.input) window.__game.input.fire = false
+  }
+  if (!result) return
+  const w = result.weapon
+  audio[w.id === 'blockbuster' ? 'rocket' : w.id === 'scattergun' ? 'scatter' : w.id === 'autogun' ? 'autogun' : 'cannon']()
+  const mz = muzzleWorld()
+  flashes.push(makeMuzzle(scene, mz))
+  for (const shot of result.shots) {
+    if (w.tracer && shot.point) tracers.push(makeTracer(scene, mz.clone(), shot.point, w.tracer))
+    if (shot.kind === 'dummy' && shot.removed) {
+      audio.dummy()
+      showDamage(hud.dmgLayer, renderer, camera, shot.point, shot.removed)
     }
-  },
+  }
+  if (combatCtx.dirty) {
+    voxels.rebuild(world)
+    combatCtx.dirty = false
+  }
 }
 
-// ---------- 音效 ----------
-let audio = null
-function initAudio() {
-  if (audio) return
-  try { audio = new (window.AudioContext || window.webkitAudioContext)() } catch { /* 无声环境 */ }
-}
-function beep(freq, dur = 0.15, vol = 0.18, type = 'square') {
-  if (!audio) return
-  const o = audio.createOscillator()
-  o.type = type
-  o.frequency.value = freq
-  const g = audio.createGain()
-  g.gain.setValueAtTime(vol, audio.currentTime)
-  g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + dur)
-  o.connect(g).connect(audio.destination)
-  o.start()
-  o.stop(audio.currentTime + dur)
-}
-const sfx = {
-  jump: () => beep(440, 0.12, 0.12, 'triangle'),
-  double: () => beep(620, 0.12, 0.12, 'triangle'),
-  coin: () => { beep(988, 0.08, 0.14); setTimeout(() => beep(1319, 0.13, 0.14), 60) },
-  checkpoint: () => { beep(523, 0.1, 0.15); setTimeout(() => beep(784, 0.18, 0.15), 90) },
-  fall: () => beep(180, 0.3, 0.2, 'sawtooth'),
-  win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 0.18), i * 130)),
+function stepFx(dt) {
+  for (let i = tracers.length - 1; i >= 0; i--) {
+    const t = tracers[i]
+    t.life -= dt
+    t.mesh.material.opacity = Math.max(0, t.life * 12)
+    if (t.life <= 0) {
+      scene.remove(t.mesh)
+      t.mesh.geometry.dispose()
+      tracers.splice(i, 1)
+    }
+  }
+  for (let i = flashes.length - 1; i >= 0; i--) {
+    const f = flashes[i]
+    f.life -= dt
+    f.light.intensity = 3.2 * (f.life / 0.05)
+    if (f.life <= 0) {
+      scene.remove(f.light); scene.remove(f.flash)
+      flashes.splice(i, 1)
+    }
+  }
 }
 
-// ---------- HUD ----------
-const el = {
-  coins: document.getElementById('coins'),
-  coinsTotal: document.getElementById('coinsTotal'),
-  time: document.getElementById('time'),
-  cpName: document.getElementById('cpName'),
-  toast: document.getElementById('checkpointToast'),
-  bar: document.getElementById('progressBar'),
-  overlay: document.getElementById('overlay'),
-}
-el.coinsTotal.textContent = level.coins.length
-
-function fmt(ms) {
-  const m = Math.floor(ms / 60000)
-  const s = Math.floor((ms % 60000) / 1000)
-  const t = Math.floor((ms % 1000) / 100)
-  return `${m}:${String(s).padStart(2, '0')}.${t}`
-}
-
-let toastTimer = null
-function toast(text) {
-  el.toast.textContent = text
-  el.toast.style.opacity = 1
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { el.toast.style.opacity = 0 }, 1600)
-}
-
-anyKeyHook = () => {
-  phase = 'play'
-  startT = performance.now()
-  el.overlay.classList.add('hidden')
-}
-
-function doRespawn(fell) {
-  player.pos.copy(respawn.pos)
-  player.pos.y += 0.1
-  player.vx = player.vy = player.vz = 0
-  if (fell) { sfx.fall(); toast('掉到马路上啦!回到 ' + respawn.name) }
-}
-
-function winRace() {
-  phase = 'win'
-  winTime = performance.now() - startT
-  sfx.win()
-  el.overlay.classList.remove('hidden')
-  el.overlay.innerHTML = `
-    <h1>🏅 跳进鸟巢!</h1>
-    <div class="sub">
-      用时 ${fmt(winTime)}<br>
-      金币 ${coinCount} / ${level.coins.length}
-    </div>
-    <p class="blink">按 R 再跑一次</p>`
-}
-
-// ---------- 主循环 ----------
-let lastT = performance.now()
+let last = performance.now()
 let acc = 0
-let frames = 0
-const camPos = new THREE.Vector3(0, 6, level.startZ + 10)
-const camLook = new THREE.Vector3()
+let simNow = 0
+function tick(dt, now) {
+  frames++
+  fpsT += dt
+  fpsN++
+  if (fpsT >= 0.4) { fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0 }
+
+  if (phase === 'play' || window.__game?.forcePlay) {
+    const mv = window.__game?.input ? { x: window.__game.input.x || 0, z: window.__game.input.z || 0 } : readMove()
+    input.x = mv.x
+    input.z = mv.z
+    input.jump = jumpQueued || !!window.__game?.input?.jump
+    input.dash = dashQueued || !!window.__game?.input?.dash
+    jumpQueued = false
+    dashQueued = false
+    if (window.__game?.input) {
+      window.__game.input.jump = false
+      window.__game.input.dash = false
+    }
+
+    acc += dt
+    while (acc >= PHYS) {
+      acc -= PHYS
+      stepPlayer(player, input, PHYS, solidCell)
+      input.jump = false
+      input.dash = false
+    }
+    if (player.pos.y < -6) {
+      player.pos.set(0, 1.05, 12)
+      player.vel.set(0, 0, 0)
+    }
+    if (player.justDashed) { audio.dash(); puffs.puff(player.pos.x, player.pos.y + 0.15, player.pos.z) }
+    if (player.justJumped) audio.jump()
+    if (Math.hypot(player.vel.x, player.vel.z) > 2 && player.grounded && frames % 8 === 0) {
+      puffs.puff(player.pos.x, player.pos.y + 0.08, player.pos.z)
+    }
+
+    stepLoadout(loadout, dt)
+    handleFire()
+    stepRockets(combatCtx, dt)
+    if (combatCtx.dirty) { voxels.rebuild(world); combatCtx.dirty = false }
+    updateDummies(dummies, dt)
+  }
+
+  debris.update(dt)
+  puffs.update(dt)
+  stepFx(dt)
+  stepDecor(decor, now / 1000)
+  const moving = Math.hypot(player.vel.x, player.vel.z) > 0.4
+  syncCowboy(player, cowboy, now, moving)
+  for (const [id, gun] of Object.entries(cowboy.guns)) gun.visible = id === currentWeapon(loadout).id
+  updateCamera(dt)
+  syncHud(hud, player, loadout, currentWeapon(loadout), fps)
+}
 
 function frame(now) {
   requestAnimationFrame(frame)
-  frames++
-  const dt = Math.min((now - lastT) / 1000, 0.05)
-  lastT = now
-
-  // 相机旋转
-  if (keys.has('KeyQ')) camYaw += 1.8 * dt
-  if (keys.has('KeyE')) camYaw -= 1.8 * dt
-
-  // 移动平台
-  updateMovers(level.movers, now / 1000)
-
-  if (phase === 'play' || phase === 'win') {
-    let input
-    if (phase !== 'play') {
-      input = { x: 0, z: 0, jumpPressed: false }
-    } else if (window.__game.input) {
-      input = { ...window.__game.input }
-      window.__game.input.jumpPressed = false // 单次消费
-    } else {
-      input = readInput()
-    }
-    acc += dt
-    while (acc >= PHYS_DT) {
-      acc -= PHYS_DT
-      const wasCanDouble = player.canDouble
-      stepPlayer(player, input, PHYS_DT, level.colliders)
-      if (player.justJumped) (wasCanDouble && !player.canDouble ? sfx.double : sfx.jump)()
-      input = { ...input, jumpPressed: false } // 跳跃只作用于第一个物理子步
-    }
-    // 站在移动平台上跟着走
-    const mv = level.movers.find((m) => m.c === player.groundC)
-    if (mv) player.pos.x += mv.delta.x
-
-    // 掉到马路上(过了广场线)→ 回检查点
-    if (phase === 'play' && player.grounded && player.pos.y < 0.05 && player.pos.z < level.safeGroundZ) {
-      doRespawn(true)
-    }
-
-    // 金币
-    for (const c of level.coins) {
-      if (c.taken) continue
-      const dx = c.mesh.position.x - player.pos.x
-      const dy = c.mesh.position.y - (player.pos.y + 0.8)
-      const dz = c.mesh.position.z - player.pos.z
-      if (dx * dx + dz * dz < 1.4 * 1.4 && Math.abs(dy) < 1.6) {
-        c.taken = true
-        c.mesh.visible = false
-        coinCount++
-        el.coins.textContent = coinCount
-        sfx.coin()
-      }
-    }
-    // 检查点
-    for (const cp of level.checkpoints) {
-      if (cp.active) continue
-      const dx = cp.pos.x - player.pos.x
-      const dz = cp.pos.z - player.pos.z
-      if (dx * dx + dz * dz < cp.radius * cp.radius && Math.abs(cp.pos.y - player.pos.y) < 3) {
-        cp.active = true
-        cp.mesh.material = cp.mesh.material.clone()
-        cp.mesh.material.emissive = new THREE.Color(0xdd2200)
-        respawn = { pos: cp.pos.clone(), name: cp.name }
-        el.cpName.textContent = cp.name
-        toast('🚩 ' + cp.name)
-        sfx.checkpoint()
-      }
-    }
-    // 终点
-    if (phase === 'play') {
-      const dg = level.goal.pos.distanceTo(player.pos)
-      if (dg < level.goal.radius) winRace()
-    }
-  }
-
-  syncPandaMesh(player, panda, now)
-
-  // 场景动画
-  for (const c of level.clouds) {
-    c.position.x += c.userData.speed * dt
-    if (c.position.x > 420) c.position.x = -420
-  }
-  for (const c of level.coins) {
-    if (c.taken) continue
-    c.mesh.rotation.y = now * 0.0035 + c.phase
-    c.mesh.position.y = c.baseY + Math.sin(now * 0.004 + c.phase) * 0.15
-  }
-  for (const p of level.props) {
-    p.rotation.z = Math.sin(now * 0.0012 + p.userData.phase) * 0.05
-  }
-  for (const cp of level.checkpoints) {
-    cp.ring.rotation.z = now * 0.001
-  }
-  level.goal.flag.rotation.y = Math.sin(now * 0.002) * 0.2
-
-  // 相机跟随
-  const fx = Math.sin(camYaw), fz = Math.cos(camYaw)
-  const targetPos = new THREE.Vector3(
-    player.pos.x - fx * 9,
-    player.pos.y + 5.2,
-    player.pos.z - fz * 9
-  )
-  const targetLook = new THREE.Vector3(
-    player.pos.x + fx * 3,
-    player.pos.y + 1.4,
-    player.pos.z + fz * 3
-  )
-  camPos.lerp(targetPos, 1 - Math.exp(-7 * dt))
-  camLook.lerp(targetLook, 1 - Math.exp(-10 * dt))
-  camera.position.copy(camPos)
-  camera.lookAt(camLook)
-
-  // 阳光跟随
-  sun.position.set(player.pos.x + 50, 90, player.pos.z + 30)
-  sun.target.position.set(player.pos.x, 0, player.pos.z)
-
-  // HUD
-  if (phase === 'play') el.time.textContent = fmt(now - startT)
-  const prog = Math.max(0, Math.min(1, (level.startZ - player.pos.z) / (level.startZ - level.endZ)))
-  el.bar.style.width = (prog * 100).toFixed(1) + '%'
-
-  renderer.render(scene, camera)
+  const dt = Math.min(0.05, (now - last) / 1000)
+  last = now
+  simNow = now
+  tick(dt, now)
+  if (composer) composer.render()
+  else renderer.render(scene, camera)
 }
 requestAnimationFrame(frame)
-window.__game.ready = true
+
+window.__game = {
+  ready: true,
+  input: null,
+  start: startGame,
+  teleport(x, y, z) { player.pos.set(x, y, z); player.vel.set(0, 0, 0); snapCamera() },
+  look(yaw, pitch) { player.yaw = yaw; player.pitch = pitch; snapCamera() },
+  aimAt(x, y, z) {
+    const target = new THREE.Vector3(x, y, z)
+    const from = player.pos.clone()
+    from.y += PLAYER.camHeight
+    player.yaw = Math.atan2(target.x - from.x, -(target.z - from.z))
+    from.add(rightDir(player.yaw, new THREE.Vector3()).multiplyScalar(PLAYER.camShoulder))
+    const d = target.sub(from).normalize()
+    player.yaw = Math.atan2(d.x, -d.z)
+    player.pitch = Math.asin(Math.max(-1, Math.min(1, d.y)))
+    snapCamera()
+  },
+  fire() { fireQueued = true; fireHeld = true; setTimeout(() => { fireHeld = false }, 40) },
+  holdFire(on) { fireHeld = !!on },
+  slot(n) { setSlot(loadout, n) },
+  reload() { startReload(loadout) },
+  advance(ms) {
+    const dt = 1 / 60
+    const n = Math.max(1, Math.ceil(ms / (dt * 1000)))
+    for (let i = 0; i < n; i++) {
+      simNow += dt * 1000
+      tick(dt, simNow)
+    }
+    if (composer) composer.render()
+    else renderer.render(scene, camera)
+  },
+  state() {
+    return {
+      phase, frames, fps,
+      pos: { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2) },
+      grounded: player.grounded,
+      slot: loadout.slot,
+      ammo: loadout.ammo[loadout.slot],
+      mag: currentWeapon(loadout).mag,
+      reloading: loadout.reloading,
+      carved: combatCtx.carved,
+      dummies: dummies.map((d) => ({ dead: d.dead, left: d.cells.filter((c) => c.alive).length })),
+      hp: player.hp,
+      yaw: +player.yaw.toFixed(3),
+      pitch: +player.pitch.toFixed(3),
+      rockets: combatCtx.rockets.length,
+      carved: combatCtx.carved,
+    }
+  },
+}
