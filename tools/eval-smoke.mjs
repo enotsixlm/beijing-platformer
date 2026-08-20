@@ -52,6 +52,7 @@ try {
   console.log(failures.length ? `\n${failures.length} 项失败` : '\n全部通过')
   process.exitCode = failures.length ? 1 : 0
 } finally {
-  await browser.close()
-  vite.kill()
+  await browser.close().catch(() => {})
+  vite.kill('SIGKILL')
+  process.exit(process.exitCode || 0)
 }
