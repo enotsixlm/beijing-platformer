@@ -160,17 +160,17 @@ export const THEMES = {
     building: [0xdce8c8, 0xb8cda0, 0x8aaa70],
   },
   shiva: {
-    sky: 0x14081e, fog: 0x2a1040, fogNear: 90, fogFar: 380,
-    hemiSky: 0x8866cc, hemiGround: 0x220830, sun: 0xff66cc, sunInt: 1.3,
-    road: 0x1a1028, curbA: 0xff4dff, curbB: 0x3ee0e8, ground: 0x0c0614,
-    building: [0x2a1848, 0x441860, 0x0a0818, 0x662244],
+    sky: 0x3a1a70, fog: 0x5a2a90, fogNear: 220, fogFar: 640,
+    hemiSky: 0xe0b0ff, hemiGround: 0x4a1860, sun: 0xff99ee, sunInt: 1.8,
+    road: 0x5a40b0, curbA: 0xff77ff, curbB: 0x66ffff, ground: 0x281048,
+    building: [0x3a2060, 0x552070, 0x1a1028, 0x883355],
   },
 }
 
 function asphaltTex(themeId) {
   const dark = themeId === 'shiva'
   return canvasTex(256, 256, (g) => {
-    g.fillStyle = dark ? '#1a1028' : '#4a5160'
+    g.fillStyle = dark ? '#3a2468' : '#5c6574'
     g.fillRect(0, 0, 256, 256)
     for (let i = 0; i < 900; i++) {
       g.fillStyle = `rgba(255,255,255,${0.02 + Math.random() * 0.04})`
@@ -254,16 +254,20 @@ export function pointAt(track, s, x) {
   return sm.pos.clone().addScaledVector(sm.right, x)
 }
 
-export function project(track, pos, hint = 0) {
+export function project(track, pos, hint = 0, lastS = 0) {
   const n = track.samples.length - 1
-  let bestI = 0
-  let bestD = Infinity
-  const window = 50
+  const L = track.length
+  let bestI = ((hint % n) + n) % n
+  let bestScore = Infinity
+  const window = 48
   for (let k = -window; k <= window; k++) {
     const i = ((hint + k) % n + n) % n
     const d = pos.distanceToSquared(track.samples[i].pos)
-    if (d < bestD) {
-      bestD = d
+    const sd = Math.abs(track.samples[i].dist - lastS)
+    const wrap = Math.min(sd, L - sd)
+    const score = d + wrap * wrap * 0.2
+    if (score < bestScore) {
+      bestScore = score
       bestI = i
     }
   }
@@ -304,8 +308,8 @@ function buildRoad(track, theme, themeId) {
   }
   for (let i = 0; i < samples.length - 1; i++) {
     if (inGap(samples[i].t) || inGap(samples[i + 1].t)) continue
-    const a = i * 2
-    idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+      const a = i * 2
+      idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3)
   }
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
@@ -315,7 +319,16 @@ function buildRoad(track, theme, themeId) {
   const tex = asphaltTex(themeId)
   tex.wrapS = THREE.ClampToEdgeWrapping
   tex.wrapT = THREE.RepeatWrapping
-  const mat = toon(theme.road, { map: tex })
+  let mat
+  if (themeId === 'down') {
+    mat = toon(0x3eb8dc, { emissive: 0x145a78 })
+  } else if (themeId === 'shiva') {
+    mat = new THREE.MeshLambertMaterial({
+      color: 0x6a48c0, map: tex, emissive: 0x4a2088, emissiveIntensity: 0.7,
+    })
+  } else {
+    mat = toon(theme.road, { map: tex })
+  }
   const mesh = new THREE.Mesh(geo, mat)
   mesh.receiveShadow = true
   mesh.userData.noEdges = true
@@ -325,7 +338,7 @@ function buildRoad(track, theme, themeId) {
   const curbGeo = new THREE.BoxGeometry(0.45, 0.35, 2.2)
   const matA = toon(theme.curbA)
   const matB = toon(theme.curbB)
-  for (let i = 0; i < samples.length - 1; i += 1) {
+    for (let i = 0; i < samples.length - 1; i += 2) {
     if (inGap(samples[i].t)) continue
     const s = samples[i]
     for (const side of [-1, 1]) {
@@ -395,7 +408,7 @@ function addScenery(group, track, theme, themeId, rand) {
   const mats = theme.building.map((c) => toon(c, themeId === 'shiva' ? { emissive: c, emissiveIntensity: 0.25 } : {}))
   const winMat = toon(0xffffff, { map: wtex })
 
-  const start = Math.round(themeId === 'cool' ? 2 : 1)
+  const start = Math.round(themeId === 'cool' ? 3 : 2)
   for (let i = 0; i < n; i += start) {
     const s = track.samples[i]
     for (const side of [-1, 1]) {

@@ -56,7 +56,7 @@ export function createRacer({ isPlayer, kindId, name, color, track, slot = 0, to
     s: s0,
     lastS: s0,
     lateral: col,
-    trackIndex: 0,
+    trackIndex: sm.index,
     lap: 1,
     place: slot + 1,
     finished: false,
@@ -212,7 +212,7 @@ function integrate(r, dt, track) {
   const fwdZ = Math.cos(r.heading)
   r.pos.x += fwdX * r.speed * dt
   r.pos.z += fwdZ * r.speed * dt
-  const pr = project(track, r.pos, r.trackIndex)
+  const pr = project(track, r.pos, r.trackIndex, r.s)
   r.lastS = r.s
   r.s = pr.s
   r.lateral = pr.lateral
@@ -327,7 +327,9 @@ export function collectItems(r, world, sfx, events) {
     const p = b.mesh.position
     const dx = p.x - r.pos.x
     const dz = p.z - r.pos.z
-    if (dx * dx + dz * dz < 2.8 * 2.8) {
+    const ds = Math.abs(r.s - b.s)
+    const dsWrap = Math.min(ds, world.track.length - ds)
+    if (dx * dx + dz * dz < 3.2 * 3.2 || (dsWrap < 3.5 && Math.abs(r.lateral - b.x) < 2.8)) {
       if (r.boostT < 0.85) {
         r.boostT = 1.15
         r.speed += 6
@@ -355,7 +357,9 @@ export function collectItems(r, world, sfx, events) {
     const p = st.mesh.position
     const dx = p.x - r.pos.x
     const dz = p.z - r.pos.z
-    if (dx * dx + dz * dz < 1.4 * 1.4) {
+    const ds = Math.abs(r.s - st.s)
+    const dsWrap = Math.min(ds, world.track.length - ds)
+    if (dx * dx + dz * dz < 1.8 * 1.8 || (dsWrap < 2.2 && Math.abs(r.lateral - st.x) < 1.5)) {
       st.taken = true
       st.mesh.visible = false
       r.stickT = 4.2

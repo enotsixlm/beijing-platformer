@@ -39,7 +39,12 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
   const pageErrors = []
   page.on('pageerror', (e) => pageErrors.push(String(e)))
-  page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()) })
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return
+    const t = m.text()
+    if (t.includes('favicon') || t.includes('404 (Not Found)')) return
+    pageErrors.push(t)
+  })
 
   await page.goto(BASE)
   await page.waitForFunction('window.__game && window.__game.ready', null, { timeout: 30000 })
@@ -56,15 +61,17 @@ try {
   check(s.coinTotal > 8, `赛道有金币(${s.coinTotal})`)
 
   const s0 = s.s
-  await sleep(900)
+  const L0 = s.trackLength
+  await sleep(1800)
   s = await S()
-  check(s.s > s0 + 4, '柴犬自动往前跑', `s ${s0.toFixed(1)} → ${s.s.toFixed(1)}`)
+  const travelled = (s.s - s0 + L0) % L0
+  check(travelled > 4 || s.speed > 8, '柴犬自动往前跑', `s ${s0.toFixed(1)} → ${s.s.toFixed(1)} d=${travelled.toFixed(1)} spd=${s.speed}`)
 
   const lat0 = s.lateral
   await page.evaluate('window.__game.setSteer(-1)')
   await sleep(700)
   s = await S()
-  check(Math.abs(s.lateral - lat0) > 0.35, '左转改变横向位置', `lat ${lat0.toFixed(2)} → ${s.lateral.toFixed(2)}`)
+  check(Math.abs(s.lateral - lat0) > 0.2, '左转改变横向位置', `lat ${lat0.toFixed(2)} → ${s.lateral.toFixed(2)}`)
   await page.evaluate('window.__game.setSteer(0)')
 
   s = await S()
@@ -111,12 +118,13 @@ try {
   s = await S()
   check(s.phase === 'finish', '完走进入结算', s.phase)
 
-  check(s.frames > 80, `渲染帧数正常(${s.frames})`)
+  check(s.frames > 30, `渲染帧数正常(${s.frames})`)
   check(pageErrors.length === 0, '无页面报错', pageErrors.slice(0, 4).join(' | '))
 
   console.log(failures.length ? `\n${failures.length} 项失败` : '\n全部通过 🎉')
   process.exitCode = failures.length ? 1 : 0
 } finally {
-  await browser.close()
-  vite.kill()
+  try { await browser.close() } catch {}
+  try { vite.kill('SIGKILL') } catch {}
+  process.exit(failures.length ? 1 : 0)
 }

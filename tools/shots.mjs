@@ -50,6 +50,7 @@ try {
     console.log('shot', name)
   }
 } finally {
-  await browser.close()
-  vite.kill()
+  try { await browser.close() } catch {}
+  try { vite.kill('SIGKILL') } catch {}
+  process.exit(0)
 }

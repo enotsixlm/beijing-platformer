@@ -2,7 +2,8 @@
 
 致敬 [AMIX / トミナガハルキ 的 SHIBA DASH!!](https://amix-design.com/tl/tool-g-shiba/) 的浏览器 3D 竞速复刻。柴犬自己往前冲，你只负责转向；金币必须用被拖着的饲主去捡。美术全部程序生成，基于 three.js。
 
-**在线试玩:** https://enotsixlm.github.io/beijing-platformer/
+    ![title](shots/0-title.png)
+    ![day](shots/1-day.png)
 
 ## 怎么玩
 

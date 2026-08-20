@@ -109,9 +109,10 @@ export function createShiba(kindId, { raincoat = false, board = false } = {}) {
   tail.add(tip)
   g.add(tail)
 
-  const collar = mesh(GEO.torus, toon(0xe03131), 0, 0.52, 0.22, 0.2, 0.2, 0.2)
-  collar.scale.set(1, 1, 0.55)
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.23, 0.04, 8, 18), toon(0xe03131))
   collar.rotation.x = Math.PI / 2
+  collar.position.set(0, 0.52, 0.22)
+  collar.castShadow = true
   g.add(collar)
 
   const stick = mesh(GEO.cyl, toon(0x8b5a2b), 0, 0.62, 0.78, 0.045, 2.6, 0.045)

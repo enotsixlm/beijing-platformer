@@ -147,7 +147,7 @@ function clearWorld() {
 function applyTheme(theme) {
   scene.background = new THREE.Color(theme.sky)
   scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar)
-  renderer.toneMappingExposure = theme === THEMES.shiva ? 1.05 : 1.15
+  renderer.toneMappingExposure = theme === THEMES.shiva ? 1.4 : 1.15
 }
 
 function startRace() {
@@ -423,6 +423,8 @@ window.__game = {
     player.pos.copy(p)
     player.heading = sm.heading
     player.s = ((s % world.track.length) + world.track.length) % world.track.length
+    player.lastS = player.s
+    player.trackIndex = sm.index
     player.lateral = x
     player.speed = 12
     player.owner.pos.copy(p).addScaledVector(sm.tangent, -2.5)
@@ -540,7 +542,7 @@ window.__game = {
 function frame(now) {
   requestAnimationFrame(frame)
   frames++
-  const dt = Math.min((now - lastT) / 1000, 0.05)
+  const dt = Math.min((now - lastT) / 1000, 0.1)
   lastT = now
 
   if (phase === 'menu') {
@@ -574,8 +576,10 @@ function frame(now) {
   if (phase === 'countdown' || phase === 'race') {
     if (phase === 'race') raceTime += dt * 1000
     acc += dt
-    while (acc >= PHYS_DT) {
+    let steps = 0
+    while (acc >= PHYS_DT && steps < 14) {
       acc -= PHYS_DT
+      steps++
       tickPhysics(PHYS_DT)
     }
   }
