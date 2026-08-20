@@ -14,7 +14,7 @@ export function addDecor(scene) {
     const s = 0.42 + (i % 3) * 0.08
     const m = new THREE.Mesh(
       new THREE.BoxGeometry(s, s, s),
-      new THREE.MeshBasicMaterial({ color: hex }),
+      new THREE.MeshLambertMaterial({ color: hex, emissive: hex, emissiveIntensity: 0.85 }),
     )
     m.position.set(...spots[i])
     m.userData.ph = i * 0.7
@@ -22,10 +22,10 @@ export function addDecor(scene) {
     scene.add(m)
     cubes.push(m)
   }
-  const back = new THREE.PointLight(0x2ee8ff, 2.4, 48, 1.8)
+  const back = new THREE.PointLight(0x2ee8ff, 1.35, 40, 1.8)
   back.position.set(0, 6.4, -22)
   scene.add(back)
-  const floorGlow = new THREE.PointLight(0x1ad8e8, 1.1, 28, 1.8)
+  const floorGlow = new THREE.PointLight(0x1ad8e8, 0.55, 22, 1.8)
   floorGlow.position.set(0, 1.2, 2)
   scene.add(floorGlow)
   return cubes

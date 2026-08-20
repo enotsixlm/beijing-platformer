@@ -115,7 +115,7 @@ export function createPlayerState() {
     pos: new THREE.Vector3(0, 1.02, 12),
     vel: new THREE.Vector3(),
     yaw: 0,
-    pitch: -0.08,
+    pitch: -0.12,
     grounded: true,
     sinceGround: 0,
     dashT: 0,

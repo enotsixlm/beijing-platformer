@@ -16,13 +16,13 @@ export const MAT = {
 }
 
 export const LOOK = {
-  bg: 0x020508,
-  fogNear: 16,
-  fogFar: 52,
-  bloomStrength: 1.22,
-  bloomRadius: 0.54,
-  bloomThreshold: 0.14,
-  exposure: 0.82,
+  bg: 0x03080c,
+  fogNear: 26,
+  fogFar: 70,
+  bloomStrength: 0.68,
+  bloomRadius: 0.4,
+  bloomThreshold: 0.58,
+  exposure: 0.9,
   fov: 58,
 }
 
@@ -39,9 +39,9 @@ export const PLAYER = {
   halfW: 0.38,
   height: 1.62,
   eye: 1.42,
-  camDist: 3.38,
-  camShoulder: 0.98,
-  camHeight: 1.52,
+  camDist: 3.28,
+  camShoulder: 1.08,
+  camHeight: 1.48,
   mouseSens: 0.00215,
 }
 

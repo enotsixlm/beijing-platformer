@@ -35,9 +35,9 @@ scene.fog = new THREE.Fog(LOOK.bg, LOOK.fogNear, LOOK.fogFar)
 
 const camera = new THREE.PerspectiveCamera(LOOK.fov, innerWidth / innerHeight, 0.08, 200)
 
-const hemi = new THREE.HemisphereLight(0x1e5a72, 0x05080c, 0.32)
+const hemi = new THREE.HemisphereLight(0x3a88a8, 0x080c10, 0.48)
 scene.add(hemi)
-const key = new THREE.DirectionalLight(0xc8dcea, 0.28)
+const key = new THREE.DirectionalLight(0xd8e8f4, 0.46)
 key.position.set(14, 26, 10)
 key.castShadow = true
 key.shadow.mapSize.set(1024, 1024)
@@ -47,7 +47,7 @@ key.shadow.camera.left = key.shadow.camera.bottom = -30
 key.shadow.camera.right = key.shadow.camera.top = 30
 scene.add(key)
 
-const fill = new THREE.PointLight(0x2ee8ff, 1.85, 52, 1.5)
+const fill = new THREE.PointLight(0x2ee8ff, 1.15, 48, 1.6)
 fill.position.set(0, 3.4, 3)
 scene.add(fill)
 
@@ -73,7 +73,7 @@ const VignetteShader = {
       vec4 texel = texture2D(tDiffuse, vUv);
       vec2 uv = (vUv - 0.5) * vec2(offset);
       float vig = clamp(pow(1.0 - dot(uv, uv), darkness), 0.0, 1.0);
-      gl_FragColor = vec4(texel.rgb * vig, texel.a);
+      gl_FragColor = vec4(texel.rgb * mix(vec3(1.0), vec3(vig), 0.72), texel.a);
     }
   `,
 }
@@ -187,6 +187,7 @@ function startGame() {
   phase = 'play'
   hud.overlay.classList.add('hidden')
   audio.init()
+  snapCamera()
   renderer.domElement.requestPointerLock?.()
 }
 

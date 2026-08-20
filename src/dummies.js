@@ -21,7 +21,11 @@ const SIL = [
 const COLORS = [0x3cf0ff, 0xff3ec8, 0xffe14a, 0x5ee6ff]
 
 function makeMat(hex) {
-  return new THREE.MeshBasicMaterial({ color: hex })
+  return new THREE.MeshLambertMaterial({
+    color: hex,
+    emissive: hex,
+    emissiveIntensity: 0.62,
+  })
 }
 
 export function createDummies(scene) {
@@ -71,7 +75,7 @@ function makeDummy(scene, x, z, hex) {
   ring2.position.y = 0.045
   group.add(ring2)
 
-  const glow = new THREE.PointLight(hex, 1.65, 7, 2)
+  const glow = new THREE.PointLight(hex, 0.85, 5.5, 2)
   glow.position.y = 1.5
   group.add(glow)
 
@@ -114,6 +118,7 @@ export function updateDummies(list, dt) {
   for (const d of list) {
     if (d.flashT > 0) {
       d.flashT -= dt
+      d.mat.emissiveIntensity = d.flashT > 0 ? 2.2 : 0.62
       d.mat.color.setHex(d.flashT > 0 ? 0xffffff : d.hex)
     }
     if (d.dead) {

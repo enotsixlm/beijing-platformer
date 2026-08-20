@@ -66,3 +66,4 @@ try {
   await browser.close().catch(() => {})
   vite.kill('SIGKILL')
 }
+process.exit(0)

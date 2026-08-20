@@ -225,10 +225,10 @@ void main() {
     vec2 fw4 = max(fwidth(p4), vec2(1e-6));
     vec2 g4 = abs(fract(p4 - 0.5) - 0.5) / fw4;
     float major = 1.0 - min(min(g4.x, g4.y), 1.0);
-    float glow = pow(clamp(line, 0.0, 1.0), 0.38);
-    float glowM = pow(clamp(major, 0.0, 1.0), 0.32);
-    col += uLine * (glow * 2.05 + glowM * 0.72);
-    col += vec3(0.02, 0.07, 0.08);
+    float glow = pow(clamp(line, 0.0, 1.0), 0.45);
+    float glowM = pow(clamp(major, 0.0, 1.0), 0.4);
+    col += uLine * (glow * 0.95 + glowM * 0.28);
+    col += vec3(0.015, 0.05, 0.055);
   }
   gl_FragColor = vec4(col, 1.0);
   #include <fog_fragment>
@@ -240,8 +240,8 @@ function makeFloorMaterial() {
     uniforms: THREE.UniformsUtils.merge([
       THREE.UniformsLib.fog,
       {
-        uColor: { value: new THREE.Color(0x041a20) },
-        uLine: { value: new THREE.Color(0x3af8ff) },
+        uColor: { value: new THREE.Color(0x051e24) },
+        uLine: { value: new THREE.Color(0x2ee8ff) },
         uCell: { value: 1 },
       },
     ]),
@@ -256,7 +256,7 @@ export function createVoxelView(scene) {
     [MAT.FLOOR]: makeFloorMaterial(),
     [MAT.WALL]: new THREE.MeshLambertMaterial({ color: 0x14181e }),
     [MAT.SOLID]: new THREE.MeshLambertMaterial({ color: 0x0c1014 }),
-    [MAT.NEON]: new THREE.MeshBasicMaterial({ color: 0x5effff }),
+    [MAT.NEON]: new THREE.MeshBasicMaterial({ color: 0x2ee8ff }),
   }
 
   const group = new THREE.Group()

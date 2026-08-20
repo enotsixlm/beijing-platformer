@@ -137,3 +137,4 @@ if (failures.length) {
   process.exit(1)
 }
 console.log('\nall smoke checks passed')
+process.exit(0)
