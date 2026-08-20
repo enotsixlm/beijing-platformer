@@ -76,8 +76,8 @@ export function createCowboy() {
   L.add(weaponRoot)
 
   const backRoot = new THREE.Group()
-  backRoot.position.set(-0.08, 1.22, 0.34)
-  backRoot.rotation.set(0.55, 0.35, 0.15)
+  backRoot.position.set(0.02, 1.18, 0.36)
+  backRoot.rotation.set(1.05, 0.15, 0.08)
   L.add(backRoot)
 
   const guns = {
@@ -93,18 +93,15 @@ export function createCowboy() {
   guns.cannon.visible = true
 
   const holster = {
-    cannon: makeGun('cannon'),
-    autogun: makeGun('autogun'),
     scattergun: makeGun('scattergun'),
     blockbuster: makeGun('blockbuster'),
   }
-  let i = 0
-  for (const [id, g] of Object.entries(holster)) {
-    g.scale.setScalar(id === 'blockbuster' ? 0.82 : 0.48)
-    g.position.set((i - 1.4) * 0.1, id === 'blockbuster' ? 0.12 : 0.02, 0)
-    backRoot.add(g)
-    i++
-  }
+  holster.scattergun.scale.setScalar(0.46)
+  holster.scattergun.position.set(-0.16, 0, 0)
+  holster.blockbuster.scale.setScalar(0.78)
+  holster.blockbuster.position.set(0.08, 0.06, 0)
+  backRoot.add(holster.scattergun)
+  backRoot.add(holster.blockbuster)
 
   blobShadow(root, 0.03, 0.46)
 
@@ -117,7 +114,6 @@ function makeGun(kind) {
   const mid = mat(0x4a5158)
   const acc = glowMat(0xff7a18)
   const glow = glowMat(0xffc14a)
-  const blue = glowMat(0x3cf0ff)
   if (kind === 'cannon') {
     box(g, 0, 0, -0.28, 0.28, 0.34, 0.62, dark)
     box(g, 0, 0.04, -0.72, 0.2, 0.2, 0.42, mid)
@@ -128,7 +124,6 @@ function makeGun(kind) {
     box(g, 0, 0.16, -0.08, 0.16, 0.16, 0.34, mid)
     box(g, 0.12, -0.1, -0.06, 0.1, 0.22, 0.2, acc)
     box(g, 0, 0.04, -1.02, 0.14, 0.14, 0.2, glow)
-    box(g, 0, 0.16, -0.5, 0.08, 0.08, 0.22, blue)
   } else if (kind === 'scattergun') {
     box(g, 0, 0, -0.34, 0.34, 0.28, 0.72, dark)
     box(g, 0.12, 0.1, -0.68, 0.12, 0.12, 0.42, mid)
@@ -138,7 +133,6 @@ function makeGun(kind) {
     box(g, 0.08, 0.16, -0.22, 0.36, 0.34, 0.86, dark)
     box(g, 0.08, 0.16, -0.72, 0.28, 0.28, 0.32, acc)
     box(g, 0.08, 0.16, -0.98, 0.24, 0.24, 0.22, glow)
-    box(g, 0.08, 0.32, -0.4, 0.12, 0.12, 0.28, blue)
   }
   g.userData.muzzle = new THREE.Vector3(0, 0.04, kind === 'blockbuster' ? -1.12 : -1.05)
   return g
