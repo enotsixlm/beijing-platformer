@@ -1,38 +1,23 @@
 import * as THREE from 'three'
-import { buildLevel, updateMovers } from './level.js'
-import { createPandaMesh, createPlayerState, stepPlayer, syncPandaMesh, P } from './player.js'
-import { applyPaperEdges } from './paper.js'
+import { COURSES, THEMES, buildCourse, updateCourseFx, sampleAt, pointAt } from './track.js'
+import { DIFFS, spawnField, stepRacer, collectItems, tryDash, syncRacerMeshes, rankRacers, drawMinimap } from './racer.js'
+import { SHIBA_KINDS, createShiba, animateShiba } from './models.js'
+import { initAudio, sfx } from './sfx.js'
 
 const PHYS_DT = 1 / 120
 
-// ---------- 渲染基础 ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.2
+renderer.toneMappingExposure = 1.15
 renderer.domElement.id = 'game'
 document.body.prepend(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xb5d9ec)
-scene.fog = new THREE.Fog(0xd3e7f0, 260, 1200)
-
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1500)
-
-const hemi = new THREE.HemisphereLight(0xd6ecff, 0x8fb573, 1.1)
-scene.add(hemi)
-const sun = new THREE.DirectionalLight(0xfff4da, 1.7)
-sun.castShadow = true
-sun.shadow.mapSize.set(2048, 2048)
-sun.shadow.camera.left = -80
-sun.shadow.camera.right = 80
-sun.shadow.camera.top = 80
-sun.shadow.camera.bottom = -80
-sun.shadow.camera.far = 400
-scene.add(sun, sun.target)
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.2, 900)
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
@@ -40,112 +25,107 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
 
-// ---------- 关卡与玩家 ----------
-const level = buildLevel(scene)
-const player = createPlayerState(0, 0, level.startZ)
-const panda = createPandaMesh()
-scene.add(panda.group)
+let phase = 'menu' // menu | countdown | race | pause | finish
+let world = null
+let racers = []
+let player = null
+let raceTime = 0
+let countdown = 3
+let countdownAcc = 0
+let frames = 0
+let lastT = performance.now()
+let acc = 0
+let selectedDog = 'aka'
+let selectedCourse = 0
+let selectedDiff = 'normal'
+let laser = { warn: 0, x: 0, mesh: null }
+let menuShiba = null
+let menuKind = null
 
-let respawn = { pos: new THREE.Vector3(0, 0, level.startZ), name: '天安门广场' }
-let coinCount = 0
-let phase = 'ready' // ready → play → win
-let startT = 0
-let winTime = null
-
-applyPaperEdges(scene)
-
-// ---------- 输入 ----------
 const keys = new Set()
-let jumpPressed = false
-let anyKeyHook = null
+const touchSteer = { l: false, r: false }
+let dashQueued = false
+
+function readSteer() {
+  if (window.__game.input && window.__game.input.steer != null) return window.__game.input.steer
+  let s = 0
+  if (keys.has('ArrowLeft') || keys.has('KeyA') || touchSteer.l) s -= 1
+  if (keys.has('ArrowRight') || keys.has('KeyD') || touchSteer.r) s += 1
+  return s
+}
+
 window.addEventListener('keydown', (e) => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault()
   if (e.repeat) return
   keys.add(e.code)
   initAudio()
-  if (anyKeyHook) { const h = anyKeyHook; anyKeyHook = null; h() }
-  if (e.code === 'Space') jumpPressed = true
-  if (e.code === 'KeyR') {
-    if (phase === 'win') location.reload()
-    else doRespawn(false)
+  if (e.code === 'Space') {
+    dashQueued = true
+    if (phase === 'menu') startRace()
   }
+  if (e.code === 'Enter' && phase === 'menu') startRace()
+  if ((e.code === 'KeyP' || e.code === 'Escape') && (phase === 'race' || phase === 'pause')) {
+    phase = phase === 'race' ? 'pause' : 'race'
+    document.getElementById('pause').classList.toggle('hidden', phase !== 'pause')
+  }
+  if (e.code === 'KeyR' && (phase === 'finish' || phase === 'pause')) restart()
 })
 window.addEventListener('keyup', (e) => keys.delete(e.code))
 
-let camYaw = Math.PI // 朝 -Z(向北)
+function bindHold(id, on, off) {
+  const el = document.getElementById(id)
+  const down = (ev) => { ev.preventDefault(); initAudio(); on() }
+  const up = (ev) => { ev.preventDefault(); off() }
+  el.addEventListener('pointerdown', down)
+  el.addEventListener('pointerup', up)
+  el.addEventListener('pointerleave', up)
+  el.addEventListener('pointercancel', up)
+}
+bindHold('btnL', () => { touchSteer.l = true }, () => { touchSteer.l = false })
+bindHold('btnR', () => { touchSteer.r = true }, () => { touchSteer.r = false })
+document.getElementById('btnDash').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  initAudio()
+  dashQueued = true
+})
+document.getElementById('btnPause').addEventListener('click', () => {
+  if (phase === 'race') {
+    phase = 'pause'
+    document.getElementById('pause').classList.remove('hidden')
+  } else if (phase === 'pause') {
+    phase = 'race'
+    document.getElementById('pause').classList.add('hidden')
+  }
+})
+document.getElementById('btnResume').addEventListener('click', () => {
+  phase = 'race'
+  document.getElementById('pause').classList.add('hidden')
+})
+document.getElementById('btnQuit').addEventListener('click', () => {
+  document.getElementById('pause').classList.add('hidden')
+  goMenu()
+})
+document.getElementById('btnAgain').addEventListener('click', () => restart())
+document.getElementById('btnMenu').addEventListener('click', () => goMenu())
+document.getElementById('btnStart').addEventListener('click', () => { initAudio(); startRace() })
 
-function readInput() {
-  const f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0)
-  const r = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0)
-  const fx = Math.sin(camYaw), fz = Math.cos(camYaw)
-  const rx = Math.sin(camYaw - Math.PI / 2), rz = Math.cos(camYaw - Math.PI / 2)
-  let x = fx * f + rx * r
-  let z = fz * f + rz * r
-  const len = Math.hypot(x, z)
-  if (len > 1) { x /= len; z /= len }
-  const jp = jumpPressed
-  jumpPressed = false
-  return { x, z, jumpPressed: jp }
+function lsKey(courseId, diff) {
+  return `shiba-best:${courseId}:${diff}`
 }
-
-// 测试钩子:无头测试可注入输入/传送/读状态
-window.__game = {
-  ready: false,
-  input: null, // {x,z,jumpPressed} 覆盖键盘
-  teleport(x, y, z) {
-    player.pos.set(x, y, z)
-    player.vx = player.vy = player.vz = 0
-  },
-  start() { if (anyKeyHook) { const h = anyKeyHook; anyKeyHook = null; h() } },
-  state() {
-    return {
-      phase, coinCount,
-      pos: { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2) },
-      grounded: player.grounded,
-      checkpoint: respawn.name,
-      frames,
-    }
-  },
+function loadBest(courseId, diff) {
+  const v = localStorage.getItem(lsKey(courseId, diff))
+  return v ? Number(v) : null
 }
-
-// ---------- 音效 ----------
-let audio = null
-function initAudio() {
-  if (audio) return
-  try { audio = new (window.AudioContext || window.webkitAudioContext)() } catch { /* 无声环境 */ }
+function saveBest(courseId, diff, t) {
+  const prev = loadBest(courseId, diff)
+  if (prev == null || t < prev) localStorage.setItem(lsKey(courseId, diff), String(t))
 }
-function beep(freq, dur = 0.15, vol = 0.18, type = 'square') {
-  if (!audio) return
-  const o = audio.createOscillator()
-  o.type = type
-  o.frequency.value = freq
-  const g = audio.createGain()
-  g.gain.setValueAtTime(vol, audio.currentTime)
-  g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + dur)
-  o.connect(g).connect(audio.destination)
-  o.start()
-  o.stop(audio.currentTime + dur)
+function loadBank() {
+  return Number(localStorage.getItem('shiba-bank') || '0')
 }
-const sfx = {
-  jump: () => beep(440, 0.12, 0.12, 'triangle'),
-  double: () => beep(620, 0.12, 0.12, 'triangle'),
-  coin: () => { beep(988, 0.08, 0.14); setTimeout(() => beep(1319, 0.13, 0.14), 60) },
-  checkpoint: () => { beep(523, 0.1, 0.15); setTimeout(() => beep(784, 0.18, 0.15), 90) },
-  fall: () => beep(180, 0.3, 0.2, 'sawtooth'),
-  win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 0.18), i * 130)),
+function saveBank(n) {
+  localStorage.setItem('shiba-bank', String(n))
 }
-
-// ---------- HUD ----------
-const el = {
-  coins: document.getElementById('coins'),
-  coinsTotal: document.getElementById('coinsTotal'),
-  time: document.getElementById('time'),
-  cpName: document.getElementById('cpName'),
-  toast: document.getElementById('checkpointToast'),
-  bar: document.getElementById('progressBar'),
-  overlay: document.getElementById('overlay'),
-}
-el.coinsTotal.textContent = level.coins.length
 
 function fmt(ms) {
   const m = Math.floor(ms / 60000)
@@ -154,47 +134,408 @@ function fmt(ms) {
   return `${m}:${String(s).padStart(2, '0')}.${t}`
 }
 
-let toastTimer = null
-function toast(text) {
-  el.toast.textContent = text
-  el.toast.style.opacity = 1
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { el.toast.style.opacity = 0 }, 1600)
+function clearWorld() {
+  if (world) {
+    scene.remove(world.group, world.hemi, world.sun, world.sun.target)
+    if (laser.mesh) { scene.remove(laser.mesh); laser.mesh = null }
+  }
+  racers = []
+  player = null
+  world = null
 }
 
-anyKeyHook = () => {
-  phase = 'play'
-  startT = performance.now()
-  el.overlay.classList.add('hidden')
+function applyTheme(theme) {
+  scene.background = new THREE.Color(theme.sky)
+  scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar)
+  renderer.toneMappingExposure = theme === THEMES.shiva ? 1.05 : 1.15
 }
 
-function doRespawn(fell) {
-  player.pos.copy(respawn.pos)
-  player.pos.y += 0.1
-  player.vx = player.vy = player.vz = 0
-  if (fell) { sfx.fall(); toast('掉到马路上啦!回到 ' + respawn.name) }
+function startRace() {
+  hideMenuShiba()
+  clearWorld()
+  const def = COURSES[selectedCourse]
+  world = buildCourse(scene, def)
+  applyTheme(world.theme)
+  racers = spawnField(world.track, selectedDog, world.group)
+  player = racers[0]
+  world.track._jumps = world.items.jumps
+  raceTime = 0
+  countdown = 3
+  countdownAcc = 0
+  phase = 'countdown'
+  dashQueued = false
+  document.getElementById('menu').classList.add('hidden')
+  document.getElementById('hud').classList.remove('hidden')
+  document.getElementById('touch').classList.remove('hidden')
+  document.getElementById('finish').classList.add('hidden')
+  document.getElementById('pause').classList.add('hidden')
+  document.getElementById('count').classList.remove('hidden')
+  document.getElementById('count').textContent = '3'
+  sfx.countdown(3)
+  if (world.def.lasers) {
+    const g = new THREE.Group()
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.08, 40, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff3355, transparent: true, opacity: 0.0 })
+    )
+    beam.rotation.x = Math.PI / 2
+    g.add(beam)
+    g.userData.beam = beam
+    scene.add(g)
+    laser = { warn: 0, x: 0, mesh: g }
+  }
 }
 
-function winRace() {
-  phase = 'win'
-  winTime = performance.now() - startT
+function restart() {
+  document.getElementById('finish').classList.add('hidden')
+  document.getElementById('pause').classList.add('hidden')
+  startRace()
+}
+
+function goMenu() {
+  phase = 'menu'
+  clearWorld()
+  applyTheme(THEMES.day)
+  document.getElementById('menu').classList.remove('hidden')
+  document.getElementById('hud').classList.add('hidden')
+  document.getElementById('touch').classList.add('hidden')
+  document.getElementById('finish').classList.add('hidden')
+  document.getElementById('pause').classList.add('hidden')
+  document.getElementById('count').classList.add('hidden')
+  showMenuShiba()
+  refreshMenu()
+}
+
+function finishRace() {
+  phase = 'finish'
   sfx.win()
-  el.overlay.classList.remove('hidden')
-  el.overlay.innerHTML = `
-    <h1>🏅 跳进鸟巢!</h1>
-    <div class="sub">
-      用时 ${fmt(winTime)}<br>
-      金币 ${coinCount} / ${level.coins.length}
-    </div>
-    <p class="blink">按 R 再跑一次</p>`
+  saveBest(world.def.id, selectedDiff, raceTime)
+  saveBank(loadBank() + player.coins)
+  const el = document.getElementById('finish')
+  el.classList.remove('hidden')
+  document.getElementById('finishTitle').textContent = player.place === 1 ? '優勝！ SHIBA DASH!!' : `${player.place}位 ゴール`
+  document.getElementById('finishStats').innerHTML = `
+    用时 ${fmt(raceTime)}　周回 ${DIFFS[selectedDiff].laps}<br>
+    金币 ${player.coins}　名次 ${player.place} / 8
+  `
 }
 
-// ---------- 主循环 ----------
-let lastT = performance.now()
-let acc = 0
-let frames = 0
-const camPos = new THREE.Vector3(0, 6, level.startZ + 10)
+const camPos = new THREE.Vector3(0, 8, 12)
 const camLook = new THREE.Vector3()
+
+function stepLaser(dt) {
+  if (!world?.def.lasers || !laser.mesh || !player) return
+  const beam = laser.mesh.userData.beam
+  if (player.place !== 1 || phase !== 'race') {
+    beam.material.opacity = 0
+    laser.warn = 0
+    return
+  }
+  laser.warn += dt
+  const p = pointAt(world.track, player.s + 6, laser.x)
+  laser.mesh.position.copy(p)
+  laser.mesh.position.y += 6
+  if (laser.warn < 1.6) {
+    beam.material.opacity = 0.15 + Math.sin(laser.warn * 20) * 0.1
+    beam.material.color.setHex(0xffcc33)
+    laser.x = THREE.MathUtils.lerp(laser.x, player.lateral, 0.04)
+  } else if (laser.warn < 2.1) {
+    beam.material.opacity = 0.85
+    beam.material.color.setHex(0xff2244)
+    if (Math.abs(player.lateral - laser.x) < 2.2) {
+      player.speed *= 0.5
+      player.stunT = Math.max(player.stunT, 0.6)
+      sfx.laser()
+      laser.warn = 0
+    }
+  } else {
+    laser.warn = 0
+    laser.x = (Math.random() - 0.5) * world.track.width * 0.4
+  }
+}
+
+function tickPhysics(dt) {
+  if (!world || !player) return
+  const racing = phase === 'race'
+  const diff = DIFFS[selectedDiff]
+  if (dashQueued) {
+    dashQueued = false
+    if (racing && tryDash(player)) sfx.dash()
+  }
+  const events = []
+  for (const r of racers) {
+    const input = { steer: r.isPlayer ? readSteer() : aiSteerLocal(r, dt, diff) }
+    stepRacer(r, input, dt, world.track, racers, diff, racing)
+    if (racing) collectItems(r, world, sfx, events)
+    if (!r.finished && r.lap > diff.laps) {
+      r.finished = true
+      r.finishTime = raceTime
+      if (r.isPlayer) finishRace()
+    }
+  }
+  rankRacers(racers, world.track)
+  for (const ev of events) {
+    if (ev === 'coin') sfx.coin()
+    if (ev === 'boost') sfx.boost()
+    if (ev === 'sneaker') sfx.sneaker()
+    if (ev === 'stick') sfx.stick()
+    if (ev === 'dashReady') sfx.boost()
+  }
+  stepLaser(dt)
+}
+
+function aiSteerLocal(r, dt, diff) {
+  r.ai.timer -= dt
+  if (r.ai.timer <= 0) {
+    r.ai.timer = 0.5 + Math.random() * 1.5
+    r.ai.targetX = (Math.random() - 0.5) * world.track.width * 0.36
+  }
+  const look = 12 + r.speed * 0.4
+  const future = pointAt(world.track, r.s + look, r.ai.targetX)
+  const dx = future.x - r.pos.x
+  const dz = future.z - r.pos.z
+  const desired = Math.atan2(dx, dz)
+  let err = desired - r.heading
+  while (err > Math.PI) err -= Math.PI * 2
+  while (err < -Math.PI) err += Math.PI * 2
+  err += Math.max(-0.4, Math.min(0.4, (r.ai.targetX - r.lateral) * 0.08))
+  return Math.max(-1, Math.min(1, err * 1.65 * diff.aiTurn * r.ai.skill))
+}
+
+function updateHUD() {
+  if (!player || !world) return
+  const diff = DIFFS[selectedDiff]
+  document.getElementById('place').textContent = `${player.place}`
+  document.getElementById('lap').textContent = `${Math.min(player.lap, diff.laps)}/${diff.laps}`
+  document.getElementById('time').textContent = fmt(raceTime)
+  document.getElementById('speed').textContent = `${Math.round(player.speed * 3.6)}`
+  document.getElementById('coins').textContent = `${player.coins}`
+  document.getElementById('dashA').classList.toggle('on', player.dashStock >= 1)
+  document.getElementById('dashB').classList.toggle('on', player.dashStock >= 2)
+  document.getElementById('courseName').textContent = world.def.name
+  const best = loadBest(world.def.id, selectedDiff)
+  document.getElementById('best').textContent = best == null ? '--:--.-' : fmt(best)
+  const mm = document.getElementById('minimap')
+  const ctx = mm.getContext('2d')
+  drawMinimap(ctx, world.track, racers, mm.width, mm.height)
+}
+
+function showMenuShiba() {
+  hideMenuShiba()
+  menuShiba = createShiba(selectedDog)
+  menuKind = selectedDog
+  menuShiba.group.position.set(0, 0, 0)
+  scene.add(menuShiba.group)
+  applyTheme(THEMES.day)
+  if (!scene.getObjectByName('menuLight')) {
+    const h = new THREE.HemisphereLight(0xfff4dc, 0x7bb36a, 1.1)
+    h.name = 'menuLight'
+    scene.add(h)
+    const s = new THREE.DirectionalLight(0xfff2c4, 1.4)
+    s.name = 'menuSun'
+    s.position.set(8, 14, 6)
+    scene.add(s)
+  }
+}
+function hideMenuShiba() {
+  if (menuShiba) {
+    scene.remove(menuShiba.group)
+    menuShiba = null
+  }
+  const h = scene.getObjectByName('menuLight')
+  const s = scene.getObjectByName('menuSun')
+  if (h) scene.remove(h)
+  if (s) scene.remove(s)
+}
+
+function refreshMenu() {
+  document.querySelectorAll('[data-dog]').forEach((b) => {
+    b.classList.toggle('sel', b.dataset.dog === selectedDog)
+  })
+  document.querySelectorAll('[data-course]').forEach((b) => {
+    b.classList.toggle('sel', Number(b.dataset.course) === selectedCourse)
+  })
+  document.querySelectorAll('[data-diff]').forEach((b) => {
+    b.classList.toggle('sel', b.dataset.diff === selectedDiff)
+  })
+  const k = SHIBA_KINDS[selectedDog]
+  document.getElementById('dogStat').textContent =
+    `${k.name}　${k.descZh}　最高速 ${Math.round(k.topSpeed * 3.6)} km/h　转向 ${k.turn.toFixed(1)}　Dash ${k.dash}`
+  const c = COURSES[selectedCourse]
+  const d = DIFFS[selectedDiff]
+  const best = loadBest(c.id, selectedDiff)
+  document.getElementById('courseStat').textContent =
+    `${c.name} / ${c.nameZh}　${d.laps} 周　纪录 ${best == null ? '无' : fmt(best)}　累计金币 ${loadBank()}`
+  if (menuKind !== selectedDog) showMenuShiba()
+}
+
+document.getElementById('dogs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-dog]')
+  if (!b) return
+  selectedDog = b.dataset.dog
+  sfx.menu()
+  initAudio()
+  refreshMenu()
+})
+document.getElementById('courses').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-course]')
+  if (!b) return
+  selectedCourse = Number(b.dataset.course)
+  sfx.menu()
+  initAudio()
+  refreshMenu()
+})
+document.getElementById('diffs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-diff]')
+  if (!b) return
+  selectedDiff = b.dataset.diff
+  sfx.menu()
+  initAudio()
+  refreshMenu()
+})
+
+window.__game = {
+  ready: false,
+  input: null,
+  start(opts = {}) {
+    if (opts.dog) selectedDog = opts.dog
+    if (opts.course != null) selectedCourse = opts.course
+    if (opts.diff) selectedDiff = opts.diff
+    startRace()
+    // skip countdown for tests if requested
+    if (opts.skipCountdown) {
+      phase = 'race'
+      document.getElementById('count').classList.add('hidden')
+    }
+  },
+  skipCountdown() {
+    if (phase === 'countdown') {
+      phase = 'race'
+      document.getElementById('count').classList.add('hidden')
+    }
+  },
+  setSteer(v) { this.input = { ...(this.input || {}), steer: v } },
+  dash() { dashQueued = true },
+  teleport(s, x = 0) {
+    if (!player || !world) return
+    const p = pointAt(world.track, s, x)
+    const sm = sampleAt(world.track, s)
+    player.pos.copy(p)
+    player.heading = sm.heading
+    player.s = ((s % world.track.length) + world.track.length) % world.track.length
+    player.lateral = x
+    player.speed = 12
+    player.owner.pos.copy(p).addScaledVector(sm.tangent, -2.5)
+    player.owner.vel.set(0, 0, 0)
+  },
+  setLap(n) { if (player) player.lap = n },
+  state() {
+    return {
+      phase,
+      frames,
+      dog: selectedDog,
+      course: world?.def.id || null,
+      coins: player?.coins ?? 0,
+      dashStock: player?.dashStock ?? 0,
+      speed: player ? +player.speed.toFixed(2) : 0,
+      s: player ? +player.s.toFixed(2) : 0,
+      lateral: player ? +player.lateral.toFixed(2) : 0,
+      lap: player?.lap ?? 0,
+      place: player?.place ?? 0,
+      stunT: player?.stunT ?? 0,
+      stickT: player?.stickT ?? 0,
+      boostT: player?.boostT ?? 0,
+      pos: player ? { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2) } : null,
+      owner: player ? { x: +player.owner.pos.x.toFixed(2), z: +player.owner.pos.z.toFixed(2) } : null,
+      racerCount: racers.length,
+      coinTotal: world?.items.coins.length ?? 0,
+      trackLength: world?.track.length ?? 0,
+      finished: player?.finished ?? false,
+    }
+  },
+  nearestCoin() {
+    if (!world || !player) return null
+    let best = null
+    let bestD = Infinity
+    for (const c of world.items.coins) {
+      if (c.taken) continue
+      const d = Math.abs(c.s - player.s)
+      const wrap = Math.min(d, world.track.length - d)
+      if (wrap < bestD) { bestD = wrap; best = c }
+    }
+    return best ? { s: best.s, x: best.x } : null
+  },
+  placeOwnerOnNearestCoin() {
+    const c = this.nearestCoin()
+    if (!c || !player) return false
+    const p = pointAt(world.track, c.s, c.x)
+    player.owner.pos.set(p.x, p.y + 0.6, p.z)
+    player.owner.vel.set(0, 0, 0)
+    player.owner.lockT = 0.35
+    return true
+  },
+  placeDogOnNearestCoin() {
+    const c = this.nearestCoin()
+    if (!c || !player) return false
+    this.teleport(c.s, c.x)
+    // keep owner away
+    const sm = sampleAt(world.track, c.s)
+    player.owner.pos.copy(player.pos).addScaledVector(sm.tangent, -4.2).addScaledVector(sm.right, 3.5)
+    return true
+  },
+  nearestBoost() {
+    if (!world) return null
+    const b = world.items.boosts[0]
+    return b ? { s: b.s, x: b.x } : null
+  },
+  nearestSneaker() {
+    const sn = world?.items.sneakers[0]
+    return sn ? { s: sn.s, x: sn.x } : null
+  },
+  placeOwnerOnSneaker() {
+    const sn = world?.items.sneakers[0]
+    if (!sn || !player) return false
+    player.owner.pos.copy(sn.mesh.position)
+    player.owner.vel.set(0, 0, 0)
+    player.owner.lockT = 0.35
+    return true
+  },
+  placeDogOnStick() {
+    const st = world?.items.sticks.find((s) => !s.taken)
+    if (!st || !player) return false
+    this.teleport(st.s, st.x)
+    return true
+  },
+  placeDogOnBoost() {
+    const b = world?.items.boosts[0]
+    if (!b || !player) return false
+    this.teleport(b.s, b.x)
+    player.speed = 10
+    player.boostT = 0
+    return true
+  },
+  nearestStick() {
+    const st = world?.items.sticks.find((s) => !s.taken)
+    return st ? { s: st.s, x: st.x } : null
+  },
+  giveCoins(n) {
+    if (!player) return
+    for (let i = 0; i < n; i++) {
+      player.coins++
+      player.coinBank++
+      if (player.coinBank >= 15 && player.dashStock < 2) {
+        player.coinBank -= 15
+        player.dashStock++
+      }
+    }
+  },
+  forceFinish() {
+    if (!player) return
+    player.finished = true
+    player.finishTime = raceTime
+    finishRace()
+  },
+}
 
 function frame(now) {
   requestAnimationFrame(frame)
@@ -202,123 +543,82 @@ function frame(now) {
   const dt = Math.min((now - lastT) / 1000, 0.05)
   lastT = now
 
-  // 相机旋转
-  if (keys.has('KeyQ')) camYaw += 1.8 * dt
-  if (keys.has('KeyE')) camYaw -= 1.8 * dt
-
-  // 移动平台
-  updateMovers(level.movers, now / 1000)
-
-  if (phase === 'play' || phase === 'win') {
-    let input
-    if (phase !== 'play') {
-      input = { x: 0, z: 0, jumpPressed: false }
-    } else if (window.__game.input) {
-      input = { ...window.__game.input }
-      window.__game.input.jumpPressed = false // 单次消费
-    } else {
-      input = readInput()
+  if (phase === 'menu') {
+    if (menuShiba) {
+      animateShiba(menuShiba, { speed: 10, steer: Math.sin(now * 0.001) * 0.4, now, boost: false })
+      menuShiba.group.rotation.y = now * 0.0008
+      camera.position.set(3.2, 1.8, 4.4)
+      camera.lookAt(0, 0.5, 0)
     }
+    renderer.render(scene, camera)
+    return
+  }
+
+  if (phase === 'countdown') {
+    countdownAcc += dt
+    if (countdownAcc > 1) {
+      countdownAcc = 0
+      countdown--
+      if (countdown <= 0) {
+        phase = 'race'
+        document.getElementById('count').textContent = 'DASH!!'
+        sfx.countdown(0)
+        setTimeout(() => document.getElementById('count').classList.add('hidden'), 400)
+      } else {
+        document.getElementById('count').textContent = String(countdown)
+        sfx.countdown(countdown)
+      }
+    }
+  }
+
+  if (phase === 'countdown' || phase === 'race') {
+    if (phase === 'race') raceTime += dt * 1000
     acc += dt
     while (acc >= PHYS_DT) {
       acc -= PHYS_DT
-      const wasCanDouble = player.canDouble
-      stepPlayer(player, input, PHYS_DT, level.colliders)
-      if (player.justJumped) (wasCanDouble && !player.canDouble ? sfx.double : sfx.jump)()
-      input = { ...input, jumpPressed: false } // 跳跃只作用于第一个物理子步
-    }
-    // 站在移动平台上跟着走
-    const mv = level.movers.find((m) => m.c === player.groundC)
-    if (mv) player.pos.x += mv.delta.x
-
-    // 掉到马路上(过了广场线)→ 回检查点
-    if (phase === 'play' && player.grounded && player.pos.y < 0.05 && player.pos.z < level.safeGroundZ) {
-      doRespawn(true)
-    }
-
-    // 金币
-    for (const c of level.coins) {
-      if (c.taken) continue
-      const dx = c.mesh.position.x - player.pos.x
-      const dy = c.mesh.position.y - (player.pos.y + 0.8)
-      const dz = c.mesh.position.z - player.pos.z
-      if (dx * dx + dz * dz < 1.4 * 1.4 && Math.abs(dy) < 1.6) {
-        c.taken = true
-        c.mesh.visible = false
-        coinCount++
-        el.coins.textContent = coinCount
-        sfx.coin()
-      }
-    }
-    // 检查点
-    for (const cp of level.checkpoints) {
-      if (cp.active) continue
-      const dx = cp.pos.x - player.pos.x
-      const dz = cp.pos.z - player.pos.z
-      if (dx * dx + dz * dz < cp.radius * cp.radius && Math.abs(cp.pos.y - player.pos.y) < 3) {
-        cp.active = true
-        cp.mesh.material = cp.mesh.material.clone()
-        cp.mesh.material.emissive = new THREE.Color(0xdd2200)
-        respawn = { pos: cp.pos.clone(), name: cp.name }
-        el.cpName.textContent = cp.name
-        toast('🚩 ' + cp.name)
-        sfx.checkpoint()
-      }
-    }
-    // 终点
-    if (phase === 'play') {
-      const dg = level.goal.pos.distanceTo(player.pos)
-      if (dg < level.goal.radius) winRace()
+      tickPhysics(PHYS_DT)
     }
   }
 
-  syncPandaMesh(player, panda, now)
+  if (world) updateCourseFx(world, now, dt, player?.pos)
+  for (const r of racers) syncRacerMeshes(r, now)
 
-  // 场景动画
-  for (const c of level.clouds) {
-    c.position.x += c.userData.speed * dt
-    if (c.position.x > 420) c.position.x = -420
+  if (player) {
+    const fwdX = Math.sin(player.heading)
+    const fwdZ = Math.cos(player.heading)
+    const dist = 8.4 + player.speed * 0.06
+    const targetPos = new THREE.Vector3(
+      player.pos.x - fwdX * dist,
+      player.pos.y + 4.4,
+      player.pos.z - fwdZ * dist
+    )
+    const targetLook = new THREE.Vector3(
+      player.pos.x + fwdX * 8 + player.owner.pos.x * 0.08,
+      player.pos.y + 1.1,
+      player.pos.z + fwdZ * 8 + player.owner.pos.z * 0.08
+    )
+    // look mix was wrong — look at a point ahead of dog, slight owner bias
+    targetLook.set(
+      player.pos.x * 0.85 + player.owner.pos.x * 0.15 + fwdX * 6,
+      player.pos.y + 1.0,
+      player.pos.z * 0.85 + player.owner.pos.z * 0.15 + fwdZ * 6
+    )
+    camPos.lerp(targetPos, 1 - Math.exp(-5.5 * dt))
+    camLook.lerp(targetLook, 1 - Math.exp(-8 * dt))
+    camera.position.copy(camPos)
+    camera.lookAt(camLook)
+    if (world) {
+      world.sun.position.set(player.pos.x + 40, 70, player.pos.z + 25)
+      world.sun.target.position.copy(player.pos)
+    }
   }
-  for (const c of level.coins) {
-    if (c.taken) continue
-    c.mesh.rotation.y = now * 0.0035 + c.phase
-    c.mesh.position.y = c.baseY + Math.sin(now * 0.004 + c.phase) * 0.15
-  }
-  for (const p of level.props) {
-    p.rotation.z = Math.sin(now * 0.0012 + p.userData.phase) * 0.05
-  }
-  for (const cp of level.checkpoints) {
-    cp.ring.rotation.z = now * 0.001
-  }
-  level.goal.flag.rotation.y = Math.sin(now * 0.002) * 0.2
 
-  // 相机跟随
-  const fx = Math.sin(camYaw), fz = Math.cos(camYaw)
-  const targetPos = new THREE.Vector3(
-    player.pos.x - fx * 9,
-    player.pos.y + 5.2,
-    player.pos.z - fz * 9
-  )
-  const targetLook = new THREE.Vector3(
-    player.pos.x + fx * 3,
-    player.pos.y + 1.4,
-    player.pos.z + fz * 3
-  )
-  camPos.lerp(targetPos, 1 - Math.exp(-7 * dt))
-  camLook.lerp(targetLook, 1 - Math.exp(-10 * dt))
-  camera.position.copy(camPos)
-  camera.lookAt(camLook)
-
-  // 阳光跟随
-  sun.position.set(player.pos.x + 50, 90, player.pos.z + 30)
-  sun.target.position.set(player.pos.x, 0, player.pos.z)
-
-  // HUD
-  if (phase === 'play') el.time.textContent = fmt(now - startT)
-  const prog = Math.max(0, Math.min(1, (level.startZ - player.pos.z) / (level.startZ - level.endZ)))
-  el.bar.style.width = (prog * 100).toFixed(1) + '%'
-
+  if (phase === 'race' || phase === 'countdown' || phase === 'finish') updateHUD()
   renderer.render(scene, camera)
 }
+
+applyTheme(THEMES.day)
+showMenuShiba()
+refreshMenu()
 requestAnimationFrame(frame)
 window.__game.ready = true
