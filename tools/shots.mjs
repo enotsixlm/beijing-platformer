@@ -1,9 +1,8 @@
-// 截几个关键场景图,人工目验画面
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'shots')
@@ -17,8 +16,21 @@ await new Promise((res, rej) => {
   setTimeout(() => rej(new Error('vite start timeout')), 20000)
 })
 
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+function chromePath() {
+  const cands = [
+    process.env.CHROME,
+    '/usr/local/bin/google-chrome',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    join(process.env.HOME || '', 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell'),
+  ]
+  return cands.find((p) => p && existsSync(p))
+}
+
+const browser = await chromium.launch({
+  executablePath: chromePath(),
+  args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-gl=angle'],
+})
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
   await page.goto(`http://localhost:${PORT}/`)
@@ -27,18 +39,18 @@ try {
   await page.evaluate('window.__game.start()')
 
   const spots = [
-    ['1-start', 0, 0, 14],
-    ['2-tiananmen-top', 6, 11.5, -14.7],
-    ['3-hutong', 0, 5.4, -70.5],
-    ['4-lanterns', 0, 8.4, -113.5],
-    ['5-temple', 0, 5.0, -143],
-    ['6-cbd', 0, 17.5, -197],
-    ['7-watercube', 0, 11.5, -262],
-    ['8-birdsnest', 0, 6.5, -299],
+    ['1-breach', 0, 0, 2],
+    ['2-outer-yard', -6, 0, 16],
+    ['3-crates', -8, 1.3, 16],
+    ['4-loading', 0, 0, 40],
+    ['5-inner-yard', 0, 0, 56],
+    ['6-command', 2, 0, 80],
+    ['7-intel', 0, 0, 83],
+    ['8-helipad', 24, 0, 76],
   ]
   for (const [name, x, y, z] of spots) {
     await page.evaluate(`window.__game.teleport(${x}, ${y}, ${z})`)
-    await page.waitForTimeout(1400)
+    await page.waitForTimeout(900)
     await page.screenshot({ path: join(outDir, name + '.png') })
     console.log('shot', name)
   }
