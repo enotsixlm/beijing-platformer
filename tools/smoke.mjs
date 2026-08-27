@@ -1,8 +1,8 @@
-// 无头冒烟测试:走/跳/检查点/金币/移动平台载运/掉落重生/终点胜利
 import { spawn } from 'node:child_process'
 import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { existsSync } from 'node:fs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = 5211
@@ -15,8 +15,22 @@ await new Promise((res, rej) => {
   setTimeout(() => rej(new Error('vite start timeout')), 20000)
 })
 
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+function chromePath() {
+  const cands = [
+    process.env.CHROME,
+    '/usr/local/bin/google-chrome',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    join(process.env.HOME || '', 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell'),
+  ]
+  return cands.find((p) => p && existsSync(p))
+}
+
+const browser = await chromium.launch({
+  executablePath: chromePath(),
+  args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-gl=angle'],
+})
 
 const failures = []
 const pass = (name) => console.log('  ✅', name)
@@ -31,7 +45,7 @@ try {
 
   await page.goto(`http://localhost:${PORT}/`)
   await page.waitForFunction('window.__game && window.__game.ready', null, { timeout: 30000 })
-  pass('页面加载,游戏就绪')
+  pass('page loaded, game ready')
 
   const S = () => page.evaluate('window.__game.state()')
   const tp = (x, y, z) => page.evaluate(`window.__game.teleport(${x}, ${y}, ${z})`)
@@ -39,110 +53,81 @@ try {
   const idle = () => page.evaluate('window.__game.input = {x:0,z:0,jumpPressed:false}')
   const sleep = (ms) => page.waitForTimeout(ms)
 
-  // 开始游戏
   await page.evaluate('window.__game.start()')
-  await sleep(300)
-  check((await S()).phase === 'play', '进入游戏(play)')
+  await sleep(350)
+  check((await S()).phase === 'play', 'enter play')
 
-  // 1. 向北走
   const s0 = await S()
-  await setInput({ x: 0, z: -1, jumpPressed: false })
-  await sleep(1200)
+  await setInput({ x: 0, z: 1, jumpPressed: false })
+  await sleep(1100)
   await idle()
   const s1 = await S()
-  check(s1.pos.z < s0.pos.z - 5, '向北行走', JSON.stringify([s0.pos, s1.pos]))
+  check(s1.pos.z > s0.pos.z + 2.5, 'walk north into the compound', JSON.stringify([s0.pos, s1.pos]))
 
-  // 2. 跳跃高度
-  await tp(0, 0, 10)
-  await sleep(200)
-  await setInput({ x: 0, z: 0, jumpPressed: true })
-  let peak = 0
-  for (let i = 0; i < 14; i++) {
-    await sleep(60)
-    const s = await S()
-    peak = Math.max(peak, s.pos.y)
-  }
-  check(peak > 1.6 && peak < 2.6, `单跳高度约 2m(实测 ${peak.toFixed(2)})`)
+  await tp(-8, 1.25, 12)
+  await sleep(400)
+  let s = await S()
+  check(s.grounded && s.pos.y > 0.9, 'stand on crate cover', JSON.stringify(s.pos))
 
-  // 3. 二段跳:跳起后再按一次
-  await tp(0, 0, 10)
+  await tp(0, 0, 8)
+  await sleep(150)
+  await setInput({ x: 0, z: 0, crouchToggle: true })
   await sleep(200)
-  await setInput({ x: 0, z: 0, jumpPressed: true })
-  await sleep(260)
-  await setInput({ x: 0, z: 0, jumpPressed: true })
-  peak = 0
-  for (let i = 0; i < 20; i++) {
-    await sleep(60)
-    const s = await S()
-    peak = Math.max(peak, s.pos.y)
-  }
-  check(peak > 3.0, `二段跳更高(实测 ${peak.toFixed(2)})`)
+  await idle()
+  s = await S()
+  check(s.crouch === true, 'crouch toggle', JSON.stringify(s))
+
+  await setInput({ x: 0, z: 0, boxToggle: true })
+  await sleep(200)
+  await idle()
+  s = await S()
+  check(s.boxOn === true, 'cardboard box on', JSON.stringify({ boxOn: s.boxOn, crouch: s.crouch }))
+  await setInput({ x: 0, z: 0, boxToggle: true })
+  await sleep(150)
   await idle()
 
-  // 4. 站上天安门城楼 → 激活检查点
-  await tp(6, 11.5, -14.7)
+  // CQC from behind whichever way guard 0 is facing
+  await page.evaluate(() => {
+    const g = window.__game.state().guards[0]
+    window.__game.teleport(g.x - Math.sin(g.heading) * 1.15, 0, g.z - Math.cos(g.heading) * 1.15)
+    window.__game.input = { x: 0, z: 0, cqc: true, jumpPressed: false }
+  })
+  await sleep(350)
+  await idle()
+  s = await S()
+  check(s.guards[0].ko === true, 'CQC knockout from behind', JSON.stringify(s.guards[0]))
+
+  // Spotting: stand in front of guard 1
+  const g1 = s.guards[1]
+  const hx = Math.sin(g1.heading), hz = Math.cos(g1.heading)
+  await tp(g1.x + hx * 2.2, 0, g1.z + hz * 2.2)
+  let spotted = false
+  for (let i = 0; i < 18; i++) {
+    await sleep(120)
+    s = await S()
+    if (s.alertPhase === 'alert' || s.guards[1].detect > 0.8 || s.guards[1].state === 'chase') {
+      spotted = true
+      break
+    }
+  }
+  check(spotted, 'standing in a vision cone raises alert', JSON.stringify({ alert: s.alertPhase, g: s.guards[1] }))
+
+  await page.evaluate('window.__game.giveIntel()')
+  await sleep(200)
+  s = await S()
+  check(s.hasIntel === true, 'acquire CHIMERA disk')
+
+  await tp(26, 0, 76)
+  await sleep(250)
+  await setInput({ x: 0, z: 0, interact: true })
   await sleep(500)
-  let s = await S()
-  check(s.grounded && Math.abs(s.pos.y - 11) < 0.3, '站上城楼白玉栏杆', JSON.stringify(s.pos))
-  check(s.checkpoint === '天安门城楼', '激活城楼检查点', s.checkpoint)
-
-  // 5. 吃金币:传送到胡同屋脊金币处
-  const c0 = s.coinCount
-  await tp(0, 5.4, -70.5)
-  await sleep(600)
   s = await S()
-  check(s.coinCount > c0, '吃到金币', `coins ${c0} → ${s.coinCount}`)
-  check(s.checkpoint === '胡同屋脊', '激活胡同检查点', s.checkpoint)
+  check(s.phase === 'win', 'board helicopter and extract', s.phase)
 
-  // 6. 掉到马路 → 回检查点
-  await tp(20, 0.02, -70)
-  await sleep(600)
-  s = await S()
-  check(Math.abs(s.pos.z - -70.5) < 4 && s.pos.y > 3, '掉马路后重生回胡同检查点', JSON.stringify(s.pos))
+  check(s.frames > 180, `frames rendered (${s.frames})`)
+  check(pageErrors.length === 0, 'no page errors', pageErrors.slice(0, 4).join(' | '))
 
-  // 7. 移动平台载运:站上灯笼桥移动灯笼
-  await tp(0, 8.4, -113.5)
-  await sleep(300)
-  s = await S()
-  if (s.grounded) {
-    const x0 = s.pos.x
-    await sleep(900)
-    s = await S()
-    check(Math.abs(s.pos.x - x0) > 0.5, '移动平台载着走', `x ${x0} → ${s.pos.x}`)
-  } else {
-    // 平台可能刚好摆走了,再试平台当前位置
-    await sleep(1200)
-    await tp(0, 8.4, -113.5)
-    await sleep(400)
-    s = await S()
-    check(true, '移动平台存在(位置随时间变化,跳过载运断言)')
-  }
-
-  // 8. 沿途关键站点都能站稳
-  const stands = [
-    ['天坛顶层环道', 0, 5.0, -143],
-    ['CBD 第一栋楼顶', 0, 8.5, -173],
-    ['CBD 最高楼顶', 0, 23.5, -221],
-    ['水立方屋顶', 0, 11.5, -262],
-  ]
-  for (const [name, x, y, z] of stands) {
-    await tp(x, y, z)
-    await sleep(500)
-    s = await S()
-    check(s.grounded && s.pos.y > y - 1.5, `站稳:${name}`, JSON.stringify(s.pos))
-  }
-
-  // 9. 鸟巢终点 → 胜利
-  await tp(0, 6.5, -303)
-  await sleep(800)
-  s = await S()
-  check(s.phase === 'win', '跳进鸟巢触发胜利', s.phase)
-
-  // 10. 帧与报错
-  check(s.frames > 200, `渲染帧数正常(${s.frames})`)
-  check(pageErrors.length === 0, '无页面报错', pageErrors.slice(0, 3).join(' | '))
-
-  console.log(failures.length ? `\n${failures.length} 项失败` : '\n全部通过 🎉')
+  console.log(failures.length ? `\n${failures.length} failed` : '\nall passed')
   process.exitCode = failures.length ? 1 : 0
 } finally {
   await browser.close()

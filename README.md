@@ -1,20 +1,32 @@
-# 北京平台跳跃 Beijing Platformer
+# SHADOW GATE
 
-熊猫跑酷:从天安门一路跳到鸟巢的剪纸风 3D 平台跳跃游戏,基于 three.js,美术全部程序生成。
+3D tactical infiltration — sneak through Blackridge Compound at night, steal the CHIMERA disk, and extract by helicopter.
 
-**在线试玩:** https://enotsixlm.github.io/beijing-platformer/
+Built with three.js. All art is generated in code.
 
-![title](shots/0-title.png)
+**Play:** https://enotsixlm.github.io/beijing-platformer/
 
-## 路线
+## How to play
 
-天安门 → 胡同 → 灯笼巷 → 天坛 → CBD → 水立方 → 鸟巢
+Stay out of the green vision cones. Running makes noise. Crouch behind crates. Wear the cardboard box. Knock guards out from behind.
 
-## 本地运行
+- **WASD** move
+- **Shift** run
+- **Ctrl / C** crouch
+- **E** cardboard box
+- **F** CQC / take disk / board chopper
+- **G** throw a pebble (lure)
+- **Space** jump (onto crates)
+- **Z / X** or mouse (click) camera
+- **R** retry checkpoint
+
+Alert phases: **ALERT** (red) → **EVASION** (they lost you) → **CAUTION** → infiltration restored.
+
+## Local
 
 ```bash
 npm install
 npm run dev
 ```
 
-冒烟测试:`npm run smoke`
+Smoke test: `npm run smoke`
