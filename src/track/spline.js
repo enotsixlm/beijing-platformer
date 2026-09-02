@@ -6,6 +6,108 @@ const LOCAL_WINDOW = 28 // samples searched each side of hintT (~35 m at 1.25 m 
 const COARSE_STRIDE = 6
 
 /**
+ * Turn a closed polyline of waypoints `[x, y, z, cornerRadius?]` into a denser control-point loop
+ * where every corner is replaced by a circular fillet of the requested radius. Feeding this to the
+ * Catmull-Rom curve guarantees a minimum corner radius (no folded inner road edge) and keeps the
+ * straights straight. Waypoints that are (nearly) collinear are passed through untouched.
+ * @param {Array<[number, number, number, number?]>} waypoints
+ * @param {number} defaultRadius
+ * @returns {Array<[number, number, number]>}
+ */
+export function roundedLoop(waypoints, defaultRadius = 22, step = 6) {
+  const n = waypoints.length
+  // 1. Per-corner fillet geometry: arc start/end points and centre.
+  const corners = []
+  for (let i = 0; i < n; i++) {
+    const A = waypoints[(i - 1 + n) % n], P = waypoints[i], B = waypoints[(i + 1) % n]
+    const r = P[3] ?? defaultRadius
+    let u1x = A[0] - P[0], u1z = A[2] - P[2]
+    let u2x = B[0] - P[0], u2z = B[2] - P[2]
+    const l1 = Math.hypot(u1x, u1z), l2 = Math.hypot(u2x, u2z)
+    u1x /= l1; u1z /= l1; u2x /= l2; u2z /= l2
+    const theta = Math.acos(clamp(u1x * u2x + u1z * u2z, -1, 1)) // interior angle at P
+    if (theta > Math.PI - 0.02 || r <= 0.01) {
+      corners.push({ sx: P[0], sz: P[2], ex: P[0], ez: P[2], y: P[1], arc: null })
+      continue
+    }
+    // Tangent length from P to the arc endpoints; clamp so fillets never overlap along an edge.
+    let d = r / Math.tan(theta / 2)
+    const maxD = 0.49 * Math.min(l1, l2)
+    let rr = r
+    if (d > maxD) { d = maxD; rr = d * Math.tan(theta / 2) }
+    const bx = u1x + u2x, bz = u1z + u2z
+    const bl = Math.hypot(bx, bz)
+    const cx = P[0] + (bx / bl) * (rr / Math.sin(theta / 2))
+    const cz = P[2] + (bz / bl) * (rr / Math.sin(theta / 2))
+    const sx = P[0] + u1x * d, sz = P[2] + u1z * d
+    const ex = P[0] + u2x * d, ez = P[2] + u2z * d
+    const a1 = Math.atan2(sz - cz, sx - cx)
+    let sweep = Math.atan2(ez - cz, ex - cx) - a1
+    while (sweep > Math.PI) sweep -= Math.PI * 2
+    while (sweep < -Math.PI) sweep += Math.PI * 2
+    corners.push({ sx, sz, ex, ez, y: P[1], arc: { cx, cz, r: rr, a1, sweep } })
+  }
+  // 2. Walk the loop emitting dense points: arc of corner i, then the straight to corner i+1.
+  const out = []
+  const push = (x, y, z) => {
+    const last = out[out.length - 1]
+    if (last && Math.hypot(last[0] - x, last[2] - z) < step * 0.35) return
+    out.push([x, y, z])
+  }
+  const anchors = [] // [index into out, y] at each corner's arc midpoint
+  for (let i = 0; i < n; i++) {
+    const c = corners[i], nx = corners[(i + 1) % n]
+    if (c.arc) {
+      const len = Math.abs(c.arc.sweep) * c.arc.r
+      const k = Math.max(2, Math.ceil(len / step))
+      for (let j = 0; j <= k; j++) {
+        const a = c.arc.a1 + (c.arc.sweep * j) / k
+        push(c.arc.cx + Math.cos(a) * c.arc.r, c.y, c.arc.cz + Math.sin(a) * c.arc.r)
+        if (j === Math.floor(k / 2)) anchors.push([out.length - 1, c.y])
+      }
+    } else {
+      push(c.sx, c.y, c.sz)
+      anchors.push([out.length - 1, c.y])
+    }
+    const dx = nx.sx - c.ex, dz = nx.sz - c.ez
+    const len = Math.hypot(dx, dz)
+    const k = Math.max(1, Math.round(len / step))
+    for (let j = 1; j < k; j++) {
+      const u = j / k
+      push(c.ex + dx * u, c.y, c.ez + dz * u)
+    }
+  }
+  // Avoid a near-duplicate closing point (the curve is closed implicitly).
+  const first = out[0], last = out[out.length - 1]
+  if (Math.hypot(first[0] - last[0], first[2] - last[2]) < step * 0.35) out.pop()
+
+  // 3. Elevation: smoothstep between corner anchors by path distance so grades stay gentle even
+  //    when two fillets meet with (almost) no straight between them.
+  const m = out.length
+  const dist = new Float64Array(m + 1)
+  for (let i = 0; i < m; i++) {
+    const a = out[i], b = out[(i + 1) % m]
+    dist[i + 1] = dist[i] + Math.hypot(b[0] - a[0], b[2] - a[2])
+  }
+  const total = dist[m]
+  const smooth = (u) => u * u * (3 - 2 * u)
+  const na = anchors.length
+  for (let i = 0; i < m; i++) {
+    const d = dist[i]
+    // find anchor interval containing d (cyclic)
+    let k = 0
+    while (k < na && dist[anchors[k][0]] <= d) k++
+    const A = anchors[(k - 1 + na) % na], B = anchors[k % na]
+    let d0 = dist[A[0]], d1 = dist[B[0]]
+    let dd = d
+    if (d1 <= d0) { d1 += total; if (dd < d0) dd += total }
+    const u = d1 > d0 ? clamp((dd - d0) / (d1 - d0), 0, 1) : 0
+    out[i][1] = A[1] + (B[1] - A[1]) * smooth(u)
+  }
+  return out
+}
+
+/**
  * Closed centripetal Catmull-Rom centreline with a dense, arc-length-uniform sample table used for
  * fast surface queries. Throughout this module `t` is the arc-length-uniform parameter, i.e.
  * `spline.getPointAt(t)` (NOT `spline.getPoint(t)`), so checkpoints at `i / checkpointCount` are
@@ -211,7 +313,8 @@ export class TrackSpline {
         if (lr >= -pd.hw && lr <= pd.hw) { type = SURFACE.BOOST; break }
       }
     } else {
-      type = abs <= wallHalfWidth ? SURFACE.OFFROAD : SURFACE.OFFROAD
+      // Beyond wallHalfWidth the type stays OFFROAD; callers detect the wall via |lateral| >= wallHalfWidth.
+      type = SURFACE.OFFROAD
       const side = lateral > 0 ? 1 : -1
       for (let k = 0; k < this.voids.length; k++) {
         const v = this.voids[k]
