@@ -178,6 +178,7 @@ export class Game {
     dt = Math.min(dt, MAX_DT)
     this.time += dt
 
+    this.renderer.info.reset()
     try {
       if (this.screen === 'race' && this.race) {
         if (!this.paused) this._updateRace(dt)
@@ -392,6 +393,7 @@ export class Game {
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
+    renderer.info.autoReset = false
     this.container.appendChild(renderer.domElement)
     this.renderer = renderer
     this.scene = new THREE.Scene()
@@ -466,11 +468,29 @@ export class Game {
       pause: (v) => self.togglePause(v),
       setInput: (controls) => { self._debugInput = controls || null },
       skipCountdown: () => { if (self.race) self.race.manager.countdown = 0.01 },
-      teleport: (t) => {
+      /** Advance the race simulation deterministically without rendering (for headless tests). */
+      step: (seconds = 1, dt = 1 / 60) => {
+        if (!self.race || self.screen !== 'race') return 0
+        const n = Math.max(1, Math.round(seconds / dt))
+        const t0 = performance.now()
+        for (let i = 0; i < n; i++) {
+          if (self.screen !== 'race') break
+          self.time += dt
+          self._updateRace(dt)
+          self.fx.update(dt, self.camera)
+        }
+        return (performance.now() - t0) / n
+      },
+      teleport: (t, lateral = 0) => {
         if (!self.race) return
         const p = self.race.track.respawnPoint(t)
+        if (lateral) {
+          const s = self.race.track.sample(t)
+          p.position.addScaledVector(s.right, lateral)
+        }
         self.race.playerKart.reset(p.position, p.heading)
       },
+      internals: () => self,
       giveItem: (id) => {
         if (!self.race) return
         self.race.playerKart.item = { id, count: 1 }
