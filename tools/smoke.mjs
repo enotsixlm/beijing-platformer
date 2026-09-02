@@ -74,15 +74,46 @@ try {
     const aiMoving = s.karts.filter((k) => k.speed > 8).length
     check(aiMoving >= 7, `karts moving (${aiMoving}/8)`)
 
+    // Teleport near the end and cross the line; no checkpoints → no lap credit.
+    await setInput({ throttle: 0, steer: 0 })
+    await page.evaluate('window.__game.teleport(0.97)')
+    await step(0.2)
+    const lapBefore = (await S()).lap
+    check(lapBefore === 1, 'still on lap 1 before line test')
+    await setInput({ throttle: 1, steer: 0 })
+    await step(3)
+    s = await S()
+    await setInput({ throttle: 0, steer: 0 })
+    check(s.progress < 0.5, `progress wrapped past finish (${s.progress.toFixed(3)})`)
+    check(s.lap === lapBefore, `no lap credited without checkpoints (lap ${s.lap})`)
+
     // Drift: start from the left edge of the road so a right-hand drift has room before the wall.
     await setInput({ throttle: 0, steer: 0 })
-    await page.evaluate('window.__game.teleport(0.05, -5.5)')
+    // Find a straight stretch with no boost pads so the drift can run its course.
+    const straightT = await page.evaluate(`(() => {
+      const g = window.__game.internals(); const track = g.race.track
+      let best = { t: 0.05, score: Infinity }
+      for (let t = 0.02; t < 0.9; t += 0.005) {
+        const a = track.sample(t), b = track.sample(t + 60 / track.length), c = track.sample(t + 130 / track.length)
+        let turn = Math.atan2(a.tangent.x, a.tangent.z) - Math.atan2(c.tangent.x, c.tangent.z)
+        turn = Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn)))
+        const padNear = track.boostPads.some((p) => p.position.distanceTo(b.position) < 90)
+        const hazardNear = track.hazards.some((h) => h.position.distanceTo(b.position) < 70)
+        const score = turn + (padNear ? 10 : 0) + (hazardNear ? 10 : 0)
+        if (score < best.score) best = { t, score }
+      }
+      return best.t
+    })()`)
+    await page.evaluate(`(() => { const track = window.__game.internals().race.track; const hw = track.sample(${straightT} + 40 / track.length).halfWidth; window.__game.teleport(${straightT}, -(hw - 1.2)) })()`)
     await setInput({ throttle: 1, steer: 0 })
-    await step(2.5)
-    await setInput({ throttle: 1, steer: 1, hop: true })
+    await step(1.8)
+    s = await S()
+    check(s.surface === 'road' && s.speed > 20, `on road at speed before drift (${s.surface}, ${s.speed.toFixed(1)} m/s, t=${straightT})`)
+    await setInput({ throttle: 1, steer: 0.4, hop: true })
     await step(0.5)
     s = await S()
     check(s.state.drifting, 'drift engages with hop+steer', JSON.stringify(s.state))
+    await setInput({ throttle: 1, steer: 0, hop: true }) // neutral drift keeps a wide arc
     await step(0.5)
     s = await S()
     check(s.state.drifting && s.state.driftLevel >= 1, `drift charges to level ${s.state.driftLevel}`, JSON.stringify(s.state))
@@ -92,6 +123,13 @@ try {
     s = await S()
     check(s.state.boostTimer > 0, `drift release (level ${lvl}) yields mini-turbo`, JSON.stringify({ boost: s.state.boostTimer, speed: s.speed }))
     await step(1.5)
+
+    // Settle on the centre line before item tests.
+    await setInput({ throttle: 0, steer: 0 })
+    await page.evaluate(`window.__game.teleport(${straightT})`)
+    await setInput({ throttle: 1, steer: 0 })
+    await step(2)
+
 
     // Items: give mushroom and use it.
     await page.evaluate("window.__game.giveItem('mushroom')")
@@ -124,18 +162,6 @@ try {
     const leader = s.karts.slice().sort((a, b) => a.rank - b.rank)[0]
     check(leader.rank === 1 && (leader.lap > 1 || leader.progress > 0.25), `leader is progressing (${leader.name} lap ${leader.lap} t=${leader.progress})`)
     check(s.rank >= 1 && s.rank <= 8, `player rank in range (${s.rank})`)
-
-    // Teleport near the end and cross the line; no checkpoints → no lap credit.
-    await setInput({ throttle: 0, steer: 0 })
-    await page.evaluate('window.__game.teleport(0.97)')
-    await step(0.2)
-    const lapBefore = (await S()).lap
-    await setInput({ throttle: 1, steer: 0 })
-    await step(3)
-    s = await S()
-    await setInput({ throttle: 0, steer: 0 })
-    check(s.progress < 0.5, `progress wrapped past finish (${s.progress.toFixed(3)})`)
-    check(s.lap === lapBefore, `no lap credited without checkpoints (lap ${s.lap})`)
 
     // Finish the race via debug hook → results screen.
     await page.evaluate('window.__game.finishPlayer()')

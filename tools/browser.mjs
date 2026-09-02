@@ -18,14 +18,17 @@ export function chromePath() {
 }
 
 export async function startVite(root, port) {
-  const vite = spawn('npx', ['vite', '--port', String(port), '--strictPort'], { cwd: root, stdio: 'pipe' })
+  const bin = join(root, 'node_modules', 'vite', 'bin', 'vite.js')
+  const vite = spawn(process.execPath, [bin, '--port', String(port), '--strictPort'], { cwd: root, stdio: 'pipe', detached: true })
   await new Promise((res, rej) => {
     vite.stdout.on('data', (d) => { if (String(d).includes('Local:')) res() })
     vite.stderr.on('data', (d) => process.stderr.write(d))
     vite.on('exit', (c) => rej(new Error('vite exited ' + c)))
     setTimeout(() => rej(new Error('vite start timeout')), 30000)
   })
-  return vite
+  const kill = () => { try { process.kill(-vite.pid, 'SIGTERM') } catch { try { vite.kill() } catch {} } }
+  process.on('exit', kill)
+  return { proc: vite, kill }
 }
 
 export async function launchBrowser() {

@@ -22,8 +22,8 @@ export const TUNE = Object.freeze({
   coastDrag: 0.05,
   offroadDrag: 2.5,
   offroadMul: 0.5,
-  steerBase: 2.9,       // rad/s at speed 0 for handling 3
-  steerFalloff: 60,     // rate = steerBase / (1 + |v| / steerFalloff)
+  steerBase: 2.6,       // rad/s at speed 0 for handling 3
+  steerFalloff: 45,     // rate = steerBase / (1 + |v| / steerFalloff)  → ~21 m radius at 32 m/s
   minSteerSpeed: 3,     // full steering authority reached at this speed (0 when stationary)
   airSteer: 0.4,
   hopDuration: 0.35,
@@ -32,9 +32,9 @@ export const TUNE = Object.freeze({
   driftGrace: 0.2,
   driftSlipBase: 0.30,  // rad (~17°)
   driftSlipSteer: 0.10, // ± with steer into/against drift (~11°–23°)
-  driftYawMul: 1.15,
-  driftSteerGain: 0.55,
-  driftChargeBase: 0.5,
+  driftYawMul: 0.95,    // neutral drift is a touch wider than grip steering; steer into it to tighten
+  driftSteerGain: 0.6,
+  driftChargeBase: 0.6,
   driftChargeSteer: 0.35,
   driftThresholds: [0.35, 0.7, 1.0],
   driftBoost: [[0, 0], [6, 0.6], [9, 0.9], [13, 1.3]],
