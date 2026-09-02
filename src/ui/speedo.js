@@ -1,7 +1,7 @@
-// Radial canvas speedometer: 0–200 km/h arc gauge, needle, digital readout.
+// Radial canvas speedometer: 0–240 km/h arc gauge, needle, digital readout.
 import { clamp } from './util.js'
 
-const MAX_KMH = 200
+const MAX_KMH = 240
 const START = Math.PI * 0.75 // 135°
 const SWEEP = Math.PI * 1.5 // 270°
 const NAVY = '#1b1f3b'
