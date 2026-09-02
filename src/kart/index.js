@@ -1,6 +1,7 @@
-// Module 2 — Karts. See ARCHITECTURE.md. STUB: to be implemented.
-export const CHARACTERS = []
-export class Kart {}
-export class PlayerInput {}
-export class ChaseCamera {}
-export function resolveKartCollisions() {}
+// Module 2 — Karts: physics, procedural models, player input, chase camera, collisions.
+// Public API per ARCHITECTURE.md.
+export { CHARACTERS } from './characters.js'
+export { Kart } from './kart.js'
+export { PlayerInput } from './input.js'
+export { ChaseCamera } from './camera.js'
+export { resolveKartCollisions } from './collisions.js'
