@@ -101,11 +101,11 @@ export function groundTexture(kind) {
   const presets = {
     sand: { base: '#e9cf8f', speck: ['#f2dea6', '#d9bd7b', '#f7e7b8', '#cbb06d'], count: 4000 },
     grass: { base: '#5cb843', speck: ['#6fcf4f', '#4aa235', '#82d95e', '#3f8f2c'], count: 6000 },
-    ash: { base: '#2b2529', speck: ['#3a3236', '#1f1a1d', '#4a3f42', '#6b3a2a'], count: 4500 },
+    ash: { base: '#4a3d40', speck: ['#5c4c50', '#3a2f33', '#6e5a5c', '#9a4a2c'], count: 4500 },
     gravel: { base: '#4a4f5c', speck: ['#5a606e', '#3c414d', '#6a7182', '#2f333c'], count: 5000 },
     concrete: { base: '#8d929c', speck: ['#9aa0aa', '#7e838c', '#a6abb5'], count: 3000 },
     rock: { base: '#5a4a48', speck: ['#6b5a57', '#4a3b39', '#7c6a66', '#3a2e2c'], count: 4000 },
-    lavaRock: { base: '#231a1c', speck: ['#31262a', '#1a1214', '#3d2d30', '#552a20'], count: 5000 },
+    lavaRock: { base: '#352628', speck: ['#463438', '#281c1f', '#553f42', '#8a3a24'], count: 5000 },
   }
   const p = presets[kind] ?? presets.grass
   return tex(256, 256, (ctx, w, h) => {
@@ -134,8 +134,8 @@ export function groundTexture(kind) {
 }
 
 /** Vertical sky gradient (v = 0 bottom → 1 top). Optional stars for night skies. */
-export function skyTexture(stops, { stars = 0 } = {}) {
-  return tex(stars > 0 ? 1024 : 64, 512, (ctx, w, h) => {
+export function skyTexture(stops, { stars = 0, starColor = '255,255,255', starAlpha = [0.4, 1], embers = 0 } = {}) {
+  return tex(stars > 0 || embers > 0 ? 1024 : 64, 512, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, h, 0, 0)
     for (const [pos, color] of stops) g.addColorStop(pos, color)
     ctx.fillStyle = g
@@ -144,8 +144,18 @@ export function skyTexture(stops, { stars = 0 } = {}) {
       const rand = mulberry32(99)
       for (let i = 0; i < stars; i++) {
         const y = rand() * h * 0.7
-        ctx.fillStyle = `rgba(255,255,255,${0.4 + rand() * 0.6})`
+        ctx.fillStyle = `rgba(${starColor},${starAlpha[0] + rand() * (starAlpha[1] - starAlpha[0])})`
         ctx.fillRect(rand() * w, y, rand() < 0.15 ? 2 : 1, rand() < 0.15 ? 2 : 1)
+      }
+    }
+    if (embers > 0) {
+      // warm specks drifting in the glow band just above the horizon
+      const rand = mulberry32(31)
+      for (let i = 0; i < embers; i++) {
+        const y = h * 0.62 + rand() * h * 0.3
+        ctx.fillStyle = `rgba(255,${150 + Math.floor(rand() * 80)},60,${0.35 + rand() * 0.5})`
+        const s = rand() < 0.2 ? 3 : 2
+        ctx.fillRect(rand() * w, y, s, s)
       }
     }
   })
@@ -202,21 +212,21 @@ export function chevronTexture(color = '#ffcc33', bg = '#1d2b6b') {
 export function lavaTexture() {
   return tex(256, 256, (ctx, w, h) => {
     const rand = mulberry32(5)
-    ctx.fillStyle = '#ff6a00'
+    ctx.fillStyle = '#ff8210'
     ctx.fillRect(0, 0, w, h)
-    for (let i = 0; i < 70; i++) {
-      const r = 8 + rand() * 26
+    for (let i = 0; i < 90; i++) {
+      const r = 8 + rand() * 28
       const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r)
-      g.addColorStop(0, '#ffe680')
-      g.addColorStop(0.5, '#ff9a1f')
-      g.addColorStop(1, 'rgba(255,90,0,0)')
+      g.addColorStop(0, '#fff2a0')
+      g.addColorStop(0.45, '#ffb62a')
+      g.addColorStop(1, 'rgba(255,120,10,0)')
       ctx.save(); ctx.translate(rand() * w, rand() * h); ctx.fillStyle = g
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.restore()
     }
-    ctx.fillStyle = 'rgba(60,20,10,0.85)'
-    for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = 'rgba(70,22,12,0.7)'
+    for (let i = 0; i < 30; i++) {
       ctx.beginPath()
-      const x = rand() * w, y = rand() * h, r = 6 + rand() * 18
+      const x = rand() * w, y = rand() * h, r = 5 + rand() * 15
       ctx.moveTo(x + r, y)
       for (let k = 1; k < 7; k++) { const a = (k / 7) * Math.PI * 2; const rr = r * (0.6 + rand() * 0.6); ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) }
       ctx.closePath(); ctx.fill()

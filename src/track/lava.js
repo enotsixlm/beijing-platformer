@@ -30,6 +30,9 @@ const WAYPOINTS = [
   [0, 3, -200, 30],     // → north to the line
 ].map(([x, y, z, r]) => (r == null ? [x * S, y, z * S] : [x * S, y, z * S, r * S]))
 
+/** signed distance (in t) from the start line, wrapping across t = 0 */
+const wrapT = (t) => (t > 0.5 ? t - 1 : t)
+
 /** Magma Fortress — volcanic castle with lava pits, crushers and rolling boulders. */
 export function buildLava(def) {
   const rand = mulberry32(66613)
@@ -49,23 +52,29 @@ export function buildLava(def) {
   sp.addVoid(tNear(118 * S, -170 * S), tNear(40 * S, -170 * S), 1)    // inside of the bottom straight
 
   // ── environment & lights ──
-  track.environment = { background: new THREE.Color(0x1a0d12), fog: { color: new THREE.Color(0x5a2416), near: 150, far: 640 } }
-  track.setupLights({ sunColor: 0xffc090, sunIntensity: 2.2, sunDir: [-0.45, 0.8, -0.35], hemiSky: 0x6a3a48, hemiGround: 0xff7a2a, hemiIntensity: 1.4 })
-  g.add(buildSky([[0, '#ff7a1a'], [0.08, '#8a2e14'], [0.28, '#2b1420'], [1, '#090611']], { stars: 260 }).mesh)
+  // Relit for ACES tone mapping (exposure 1.05): a strong warm key, a red/orange hemisphere and an
+  // orange ambient "lava bounce" so undersides never go black. Point lights over the pools + start torches ≤ 6.
+  track.environment = { background: new THREE.Color(0x2a1020), fog: { color: new THREE.Color(0x7a2e1a), near: 210, far: 780 } }
+  track.setupLights({
+    sunColor: 0xffcfa0, sunIntensity: 2.7, sunDir: [-0.45, 0.85, -0.35],
+    hemiSky: 0xa03a28, hemiGround: 0x6b2a10, hemiIntensity: 1.15,
+    ambient: { color: 0x7a3418, intensity: 0.75 },
+  })
+  g.add(buildSky([[0, '#ffa43a'], [0.05, '#e8602a'], [0.12, '#962c34'], [0.26, '#56204a'], [0.5, '#2e1638'], [1, '#1a0f26']], { stars: 220, starColor: '255,225,200', starAlpha: [0.2, 0.6], embers: 140 }).mesh)
   const b = sp.bounds(0)
   const centre = [(b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2]
-  g.add(buildMountains(rand, { centre, radius: 520, spread: 120, count: 30, color: '#2a1c22', height: [60, 150], base: [90, 170], y: groundY }).mesh)
+  g.add(buildMountains(rand, { centre, radius: 520, spread: 120, count: 30, color: '#4a2a34', height: [60, 150], base: [90, 170], y: groundY }).mesh)
   // the big volcano
   {
     const vx = centre[0] + 330, vz = centre[1] - 260
-    const cone = colored(new THREE.ConeGeometry(190, 170, 9), '#2f1e24')
+    const cone = colored(new THREE.ConeGeometry(190, 170, 9), '#4a2c36')
     jitter(cone, 14, rand)
     cone.translate(vx, groundY + 85 - 3, vz)
     const crater = colored(new THREE.CylinderGeometry(38, 30, 8, 9), '#ffb347')
     crater.translate(vx, groundY + 170 - 6, vz)
     const volcano = new THREE.Mesh(mergeParts([cone]), makeFlatMaterial(0xffffff, { vertexColors: true }))
     g.add(volcano)
-    const glow = new THREE.Mesh(crater, new THREE.MeshBasicMaterial({ color: 0xff8a2a, fog: true }))
+    const glow = new THREE.Mesh(crater, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff8a2a).multiplyScalar(1.8), fog: true }))
     g.add(glow)
     const smokeGeo = mergeParts([0, 1, 2, 3].map((i) => xf(colored(new THREE.SphereGeometry(22 + i * 8, 8, 6), '#3a3038'), { p: [i * 10, i * 30, -i * 6] })))
     const smoke = new THREE.Mesh(smokeGeo, makeToonMaterial(0xffffff, { vertexColors: true, transparent: true, opacity: 0.85 }))
@@ -75,7 +84,7 @@ export function buildLava(def) {
   }
 
   // ── ground & road ──
-  const ash = new THREE.Color('#2c2226'), ash2 = new THREE.Color('#3a2b2c'), ember = new THREE.Color('#5a2a1c')
+  const ash = new THREE.Color('#4a363a'), ash2 = new THREE.Color('#5c4446'), ember = new THREE.Color('#8a3c26')
   const ground = buildGround({
     size: 1700, cells: 56, y: groundY, texture: groundTexture('lavaRock'),
     colorAt: (x, z) => {
@@ -86,29 +95,34 @@ export function buildLava(def) {
   })
   g.add(ground.mesh)
   const road = buildRoad(sp, {
-    asphalt: { base: '#2d2a33', speck: ['#3a3640', '#25222a', '#4a4550'], centre: '#ff9a3c', edge: '#ffd9a0' },
-    curbColors: ['#c8102e', '#f2e6d8'],
+    asphalt: { base: '#504a56', speck: ['#605a68', '#423c48', '#6e6876', '#7a5a58'], centre: '#ffa23c', edge: '#ffe2b0' },
+    curbColors: ['#e0182e', '#fff4e6'],
     offroadTexture: groundTexture('ash'),
     skirt: { width: 24, groundY, texture: groundTexture('lavaRock') },
   })
   g.add(road.group)
-  const stoneTex = stoneTexture('#4d4249', '#241b20')
-  const walls = buildWalls(sp, { height: 2.2, texture: stoneTex, tile: 5, sink: 0.6 })
+  // warm underglow on the asphalt so the road never falls to black under the tone mapper
+  road.group.traverse((o) => { if (o.isMesh && o.name === 'asphalt') { o.material.emissive = new THREE.Color(0x1e1412); o.material.emissiveIntensity = 0.55 } })
+  const stoneTex = stoneTexture('#6e5e66', '#3a2c32')
+  const walls = buildWalls(sp, { height: 2.2, texture: stoneTex, tile: 5, sink: 0.6, emissive: 0x3a1408, emissiveIntensity: 0.35 })
   g.add(walls.mesh)
   // battlement caps along the walls (instanced small crenellations)
-  const crenGeo = colored(new THREE.BoxGeometry(1.2, 0.7, 0.8), '#3a3138')
+  const crenGeo = colored(new THREE.BoxGeometry(1.2, 0.7, 0.8), '#5c4c56')
   const crenPl = alongWall(sp, { every: 3.0, offset: 0, yOffset: 2.55 })
   g.add(instanced(crenGeo, makeToonMaterial(0xffffff, { vertexColors: true }), crenPl))
 
   // lava pools filling the pits + decorative lakes
-  const pools = buildLavaPools(sp, { drop: 2.7, reach: 26 })
+  const pools = buildLavaPools(sp, { drop: 2.7, reach: 26, emissiveIntensity: 1.6 })
   if (pools) {
     g.add(pools.mesh)
-    track.animate({ update: (dt) => { pools.texture.offset.y += dt * 0.03; pools.texture.offset.x += dt * 0.012 } })
+    track.animate({ update: (dt, time) => {
+      pools.texture.offset.y += dt * 0.03; pools.texture.offset.x += dt * 0.012
+      pools.material.emissiveIntensity = 1.6 + Math.sin(time * 1.7) * 0.2 // slow magma pulse
+    } })
   }
   {
     const lakeTex = lavaTexture(); lakeTex.repeat.set(4, 4)
-    const lakeMat = new THREE.MeshBasicMaterial({ map: lakeTex })
+    const lakeMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: lakeTex, emissiveIntensity: 1.6, roughness: 1 })
     const lakes = []
     let tries = 0
     while (lakes.length < 7 && tries++ < 200) {
@@ -128,14 +142,17 @@ export function buildLava(def) {
       g.add(lakeMesh)
       track.animate({ update: (dt) => { lakeTex.offset.x += dt * 0.01 } })
     }
-    // warm point lights over the bridge and pits (no shadows)
-    for (const [t, side] of [[(bridgeT0 + bridgeT1) / 2, 1], [(bridgeT0 + bridgeT1) / 2, -1], [tNear(240 * S, 57 * S), -1], [tNear(80 * S, -170 * S), 1]]) {
-      const s = sp.sample(t)
-      const pl = new THREE.PointLight(0xff7a2a, 60, 70, 1.6)
-      pl.position.copy(s.position).addScaledVector(s.right, side * (s.wallHalfWidth + 8)).add(new THREE.Vector3(0, 2, 0))
-      g.add(pl)
-    }
   }
+  // warm point lights (no shadows) — 4 over the biggest lava pits beside the road, 2 on the start-straight torches = 6 total
+  const poolLights = []
+  for (const [t, side] of [[(bridgeT0 + bridgeT1) / 2, 1], [(bridgeT0 + bridgeT1) / 2, -1], [tNear(240 * S, 57 * S), -1], [tNear(80 * S, -170 * S), 1]]) {
+    const s = sp.sample(t)
+    const pl = new THREE.PointLight(0xff8a2a, 420, 60, 2)
+    pl.position.copy(s.position).addScaledVector(s.right, side * (s.wallHalfWidth + 6)).add(new THREE.Vector3(0, 3, 0))
+    g.add(pl)
+    poolLights.push(pl)
+  }
+  track.animate({ update: (dt, time) => { for (let i = 0; i < poolLights.length; i++) poolLights[i].intensity = 420 + Math.sin(time * 2.1 + i * 1.3) * 60 } })
 
   // ── start gate, pads, boxes, grid ──
   g.add(buildStartGate(sp, { accent: '#ff6a1a', bannerText: 'MAGMA FORTRESS', pillarColor: 0x4d4249 }).group)
@@ -147,27 +164,28 @@ export function buildLava(def) {
   track.startGrid = buildStartGrid(sp)
 
   // ── scenery ──
-  const propMat = makeToonMaterial(0xffffff, { vertexColors: true })
+  // shared prop material: vertex colours + a faint warm emissive so shadowed sides read as lava-lit stone
+  const propMat = makeToonMaterial(0xffffff, { vertexColors: true, emissive: 0x3a1408, emissiveIntensity: 0.45 })
   const trees = scatter(sp, rand, { count: 70, minGap: 3, maxGap: 40, clearance: 3, heightAt: terrain, scaleRange: [0.8, 1.6], tries: 10 })
-  g.add(instanced(deadTreeGeometry(rand), propMat, trees))
+  g.add(instanced(deadTreeGeometry(rand, '#3e2c2c'), propMat, trees))
   const rocks = scatter(sp, rand, { count: 140, minGap: 1.5, maxGap: 45, clearance: 2, heightAt: terrain, scaleRange: [0.8, 3.2], yOffset: -0.3, tries: 10 })
-  g.add(instanced(rockGeometry(rand, '#3b2f33', 1), propMat, rocks))
+  g.add(instanced(rockGeometry(rand, '#5e4a50', 1), propMat, rocks))
   const crystals = scatter(sp, rand, { count: 90, minGap: 1.2, maxGap: 30, clearance: 2, heightAt: terrain, scaleRange: [0.6, 1.8], tries: 10 })
-  const crystalMat = new THREE.MeshStandardMaterial({ color: 0xff7a30, emissive: 0xff4a10, emissiveIntensity: 0.9, roughness: 0.4, flatShading: true })
+  const crystalMat = new THREE.MeshStandardMaterial({ color: 0xff7a30, emissive: 0xff5a14, emissiveIntensity: 1.4, roughness: 0.4, flatShading: true })
   g.add(instanced(crystalGeometry(), crystalMat, crystals.map((c) => ({ ...c, tilt: (rand() - 0.5) * 0.6, roll: (rand() - 0.5) * 0.6 }))))
   // watch towers around the track
   const towers = scatter(sp, rand, { count: 16, minGap: 8, maxGap: 30, clearance: 6, heightAt: terrain, scaleRange: [1.1, 1.8], tries: 12 })
-  g.add(instanced(battlementGeometry(), propMat, towers.map((t) => ({ ...t, rotationY: Math.round(t.rotationY / (Math.PI / 2)) * (Math.PI / 2) }))))
+  g.add(instanced(battlementGeometry({ body: '#6a5a64', trim: '#524450', roof: '#d0402e' }), propMat, towers.map((t) => ({ ...t, rotationY: Math.round(t.rotationY / (Math.PI / 2)) * (Math.PI / 2) }))))
   // the keep (north of the bridge)
   {
     const kx = 100 * S, kz = 165 * S
     const keep = mergeParts([
-      xf(colored(new THREE.BoxGeometry(46, 26, 30), '#4a3f47'), { p: [0, 13, 0] }),
-      xf(colored(new THREE.BoxGeometry(48, 2, 32), '#3a3138'), { p: [0, 27, 0] }),
-      ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => xf(colored(new THREE.CylinderGeometry(5, 5.5, 40, 8), '#4a3f47'), { p: [x * 22, 20, z * 14] })),
-      ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => xf(colored(new THREE.ConeGeometry(6, 9, 8), '#b8322a'), { p: [x * 22, 44, z * 14] })),
-      xf(colored(new THREE.CylinderGeometry(7, 8, 56, 8), '#4a3f47'), { p: [0, 28, 0] }),
-      xf(colored(new THREE.ConeGeometry(8.5, 12, 8), '#b8322a'), { p: [0, 62, 0] }),
+      xf(colored(new THREE.BoxGeometry(46, 26, 30), '#6a5a64'), { p: [0, 13, 0] }),
+      xf(colored(new THREE.BoxGeometry(48, 2, 32), '#524450'), { p: [0, 27, 0] }),
+      ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => xf(colored(new THREE.CylinderGeometry(5, 5.5, 40, 8), '#6a5a64'), { p: [x * 22, 20, z * 14] })),
+      ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => xf(colored(new THREE.ConeGeometry(6, 9, 8), '#d0402e'), { p: [x * 22, 44, z * 14] })),
+      xf(colored(new THREE.CylinderGeometry(7, 8, 56, 8), '#6a5a64'), { p: [0, 28, 0] }),
+      xf(colored(new THREE.ConeGeometry(8.5, 12, 8), '#d0402e'), { p: [0, 62, 0] }),
       xf(colored(new THREE.BoxGeometry(10, 14, 2), '#1a1014'), { p: [0, 7, -15.5] }),
     ])
     const keepMesh = new THREE.Mesh(keep, propMat)
@@ -179,15 +197,29 @@ export function buildLava(def) {
     const winPl = []
     for (let i = 0; i < 12; i++) winPl.push({ position: new THREE.Vector3(kx - 18 + i * 3.3, groundY + 12 + (i % 2) * 6, kz - 15.2), rotationY: Math.PI })
     for (let i = 0; i < 6; i++) winPl.push({ position: new THREE.Vector3(kx - 23.2, groundY + 10 + i * 2.5, kz - 10 + i * 4), rotationY: -Math.PI / 2 })
-    g.add(instanced(winGeo, new THREE.MeshBasicMaterial({ color: 0xffa040 }), winPl, { shadows: false }))
+    g.add(instanced(winGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffa040).multiplyScalar(1.6) }), winPl, { shadows: false }))
   }
 
-  // torches with flickering flames
+  // torches with flickering flames (colour pushed > 1 so the bloom pass catches them)
   const torchPl = alongWall(sp, { every: 16, offset: -0.6, yOffset: 0, phase: 0.3 })
   g.add(instanced(torchGeometry(), propMat, torchPl))
-  const flameMat = animateMaterial(new THREE.MeshBasicMaterial({ color: 0xffa62b }), 'flame')
+  const flameMat = animateMaterial(new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb038).multiplyScalar(2.0) }), 'flame')
   track.timeMaterial(flameMat)
   g.add(instanced(flameGeometry(), flameMat, torchPl, { shadows: false }))
+  // small flickering point lights on the two torches nearest the start line (one per side)
+  {
+    const near = (side) => torchPl
+      .map((p) => ({ p, s: sp.getSurfaceAt(p.position) }))
+      .filter(({ s }) => Math.sign(s.lateral) === side && (s.t < 0.02 || s.t > 0.98))
+      .sort((a, b) => Math.abs(wrapT(a.s.t)) - Math.abs(wrapT(b.s.t)))[0]?.p
+    const torchLights = [near(-1), near(1)].filter(Boolean).map((p) => {
+      const pl = new THREE.PointLight(0xffa040, 90, 40, 2)
+      pl.position.copy(p.position).add(new THREE.Vector3(0, 3.8, 0))
+      g.add(pl)
+      return pl
+    })
+    track.animate({ update: (dt, time) => { for (let i = 0; i < torchLights.length; i++) torchLights[i].intensity = 90 + Math.sin(time * 9 + i * 2) * 14 + Math.sin(time * 23 + i) * 8 } })
+  }
 
   // grandstands + crowd + banners
   const standGeo = grandstandGeometry({ length: 22, tiers: 4, color: '#6a5a62', roof: '#b8322a' })
@@ -240,7 +272,7 @@ export function buildLava(def) {
     track.addHazard(c.hazard)
     g.add(c.mesh)
   }
-  const boulderGeo = rockGeometry(rand, '#3d3034', 1)
+  const boulderGeo = rockGeometry(rand, '#4e3e46', 1)
   boulderGeo.scale(1.6, 1.6 / 0.75, 1.6)
   const boulderMat = makeToonMaterial(0xffffff, { vertexColors: true })
   const bT0 = tNear(140 * S, -170 * S), bT1 = tNear(10 * S, -190 * S)

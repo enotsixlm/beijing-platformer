@@ -216,11 +216,11 @@ export function roundTreeGeometry(rand, leaf = ['#3f9a3a', '#5cb84a', '#2f7d2c']
   return mergeParts(parts)
 }
 
-export function deadTreeGeometry(rand) {
-  const parts = [xf(colored(new THREE.CylinderGeometry(0.18, 0.4, 4.2, 5), '#2a2022'), { p: [0, 2.1, 0] })]
+export function deadTreeGeometry(rand, color = '#2a2022') {
+  const parts = [xf(colored(new THREE.CylinderGeometry(0.18, 0.4, 4.2, 5), color), { p: [0, 2.1, 0] })]
   for (let i = 0; i < 4; i++) {
     const a = i * 1.7
-    parts.push(xf(colored(new THREE.CylinderGeometry(0.06, 0.16, 2.2, 4), '#2a2022'), { p: [Math.cos(a) * 0.7, 3.4 + i * 0.3, Math.sin(a) * 0.7], r: [Math.sin(a) * 0.8, 0, Math.cos(a) * 0.8] }))
+    parts.push(xf(colored(new THREE.CylinderGeometry(0.06, 0.16, 2.2, 4), color), { p: [Math.cos(a) * 0.7, 3.4 + i * 0.3, Math.sin(a) * 0.7], r: [Math.sin(a) * 0.8, 0, Math.cos(a) * 0.8] }))
   }
   return mergeParts(parts)
 }
@@ -290,12 +290,12 @@ export function crystalGeometry(color = '#ff5a1f') {
   return nonIndexed(g)
 }
 
-export function battlementGeometry() {
+export function battlementGeometry({ body = '#4a3f47', trim = '#3a3138', roof = '#b8322a' } = {}) {
   return mergeParts([
-    xf(colored(new THREE.BoxGeometry(6, 4, 6), '#4a3f47'), { p: [0, 2, 0] }),
-    xf(colored(new THREE.BoxGeometry(6.6, 0.8, 6.6), '#3a3138'), { p: [0, 4.4, 0] }),
-    ...[0, 1, 2, 3].map((i) => xf(colored(new THREE.BoxGeometry(1, 1, 1), '#3a3138'), { p: [Math.cos(i * Math.PI / 2 + Math.PI / 4) * 2.7, 5.2, Math.sin(i * Math.PI / 2 + Math.PI / 4) * 2.7] })),
-    xf(colored(new THREE.ConeGeometry(2.2, 3.5, 6), '#b8322a'), { p: [0, 6.4, 0] }),
+    xf(colored(new THREE.BoxGeometry(6, 4, 6), body), { p: [0, 2, 0] }),
+    xf(colored(new THREE.BoxGeometry(6.6, 0.8, 6.6), trim), { p: [0, 4.4, 0] }),
+    ...[0, 1, 2, 3].map((i) => xf(colored(new THREE.BoxGeometry(1, 1, 1), trim), { p: [Math.cos(i * Math.PI / 2 + Math.PI / 4) * 2.7, 5.2, Math.sin(i * Math.PI / 2 + Math.PI / 4) * 2.7] })),
+    xf(colored(new THREE.ConeGeometry(2.2, 3.5, 6), roof), { p: [0, 6.4, 0] }),
   ])
 }
 
@@ -491,10 +491,11 @@ export function buildSea({ centre = [0, 0], size = 1500, y = -0.6, color = 0x2f9
 }
 
 /** Lava pools filling the void zones (ribbons below road level), merged into one emissive mesh. */
-export function buildLavaPools(spline, { drop = 2.6, reach = 22 }) {
+export function buildLavaPools(spline, { drop = 2.6, reach = 22, emissiveIntensity = 1.6 }) {
   const t = lavaTexture()
   t.repeat.set(2, 1)
-  const mat = new THREE.MeshBasicMaterial({ map: t, color: 0xffffff, fog: true })
+  // emissive-only so the bloom pass picks the pools up; `color` black so scene lights don't matter
+  const mat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: t, emissiveIntensity, roughness: 1, fog: true })
   const geos = []
   for (const v of spline.voids) {
     for (const sd of v.side === 0 ? [-1, 1] : [v.side]) {
