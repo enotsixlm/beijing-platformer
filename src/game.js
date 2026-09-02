@@ -223,6 +223,13 @@ export class Game {
       c.brake = 0
       c.hop = false
     }
+    if (manager.isControlLocked?.(playerKart)) {
+      c.throttle = 0
+      c.brake = 0
+      c.steer = 0
+      c.hop = false
+      c.useItem = false
+    }
     if (playerKart.state.finished) {
       c.useItem = false
     } else if (c.useItem && racing && !this._itemLatch) {
