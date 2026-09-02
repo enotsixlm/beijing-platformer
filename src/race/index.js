@@ -1,4 +1,4 @@
-// Module 3 — Race logic. See ARCHITECTURE.md. STUB: to be implemented.
-export class AIDriver {}
-export class ItemSystem {}
-export class RaceManager {}
+// Module 3 — Race logic: AI drivers, item system, race manager. See ARCHITECTURE.md.
+export { AIDriver } from './ai.js'
+export { ItemSystem } from './items.js'
+export { RaceManager } from './raceManager.js'
