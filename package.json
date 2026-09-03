@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "smoke:racing": "node tools/smoke-racing.mjs",
+    "smoke:all": "npm run smoke && npm run smoke:racing",
+    "shots": "node tools/shots.mjs",
+    "shots:racing": "node tools/shots-racing.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"
