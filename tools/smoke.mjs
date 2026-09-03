@@ -1,22 +1,14 @@
 // 无头冒烟测试:走/跳/检查点/金币/移动平台载运/掉落重生/终点胜利
-import { spawn } from 'node:child_process'
-import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { launchBrowser } from './launchBrowser.mjs'
+import { startVite } from './startVite.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = 5211
 
-const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'pipe' })
-await new Promise((res, rej) => {
-  vite.stdout.on('data', (d) => { if (String(d).includes('Local:')) res() })
-  vite.stderr.on('data', (d) => process.stderr.write(d))
-  vite.on('exit', (c) => rej(new Error('vite exited ' + c)))
-  setTimeout(() => rej(new Error('vite start timeout')), 20000)
-})
-
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+const vite = await startVite(root, PORT)
+const browser = await launchBrowser()
 
 const failures = []
 const pass = (name) => console.log('  ✅', name)
@@ -146,5 +138,5 @@ try {
   process.exitCode = failures.length ? 1 : 0
 } finally {
   await browser.close()
-  vite.kill()
+  vite.stop()
 }

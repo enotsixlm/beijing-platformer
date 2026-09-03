@@ -1,24 +1,17 @@
 // 截几个关键场景图,人工目验画面
-import { spawn } from 'node:child_process'
-import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { mkdirSync } from 'node:fs'
+import { launchBrowser } from './launchBrowser.mjs'
+import { startVite } from './startVite.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'shots')
 mkdirSync(outDir, { recursive: true })
 const PORT = 5212
 
-const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'pipe' })
-await new Promise((res, rej) => {
-  vite.stdout.on('data', (d) => { if (String(d).includes('Local:')) res() })
-  vite.on('exit', (c) => rej(new Error('vite exited ' + c)))
-  setTimeout(() => rej(new Error('vite start timeout')), 20000)
-})
-
-const shell = join(process.env.HOME, 'Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell')
-const browser = await chromium.launch({ executablePath: shell, args: ['--enable-unsafe-swiftshader'] })
+const vite = await startVite(root, PORT)
+const browser = await launchBrowser()
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
   await page.goto(`http://localhost:${PORT}/`)
@@ -44,5 +37,5 @@ try {
   }
 } finally {
   await browser.close()
-  vite.kill()
+  vite.stop()
 }
