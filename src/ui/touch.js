@@ -103,9 +103,11 @@ export class TouchControls {
     const r = this.pad.getBoundingClientRect()
     const half = r.width / 2
     const dx = e.clientX - (r.left + half)
-    const steer = clamp(dx / (half * 0.75), -1, 1)
-    this.controls.steer = steer
-    this.knob.style.transform = `translate(calc(-50% + ${(steer * half * 0.6).toFixed(1)}px), -50%)`
+    const visual = clamp(dx / (half * 0.75), -1, 1)
+    this.controls.steer = -visual
+    this.knob.style.transform = `translate(calc(-50% + ${(visual * half * 0.6).toFixed(1)}px), -50%)`
+    this.pad.classList.toggle('is-left', visual < -0.15)
+    this.pad.classList.toggle('is-right', visual > 0.15)
     this.pad.classList.toggle('is-left', steer < -0.15)
     this.pad.classList.toggle('is-right', steer > 0.15)
   }

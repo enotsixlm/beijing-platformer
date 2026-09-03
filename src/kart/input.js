@@ -57,8 +57,9 @@ export class PlayerInput {
 
     // keyboard
     let target = 0
-    if (any(KEYS.right)) target += 1
-    if (any(KEYS.left)) target -= 1
+    // Positive steer is a right turn in physics; A/Left must map to a left turn.
+    if (any(KEYS.right)) target -= 1
+    if (any(KEYS.left)) target += 1
     if (target !== 0) {
       const step = dt / STEER_RAMP_UP
       // reverse direction quickly: pass through zero at ramp-down speed first
@@ -85,12 +86,12 @@ export class PlayerInput {
     if (gp) {
       const ax = gp.axes[0] || 0
       let gs = 0
-      if (Math.abs(ax) > STICK_DEADZONE) gs = Math.sign(ax) * ((Math.abs(ax) - STICK_DEADZONE) / (1 - STICK_DEADZONE))
+      if (Math.abs(ax) > STICK_DEADZONE) gs = -Math.sign(ax) * ((Math.abs(ax) - STICK_DEADZONE) / (1 - STICK_DEADZONE))
       const btn = (i) => gp.buttons[i]
       const val = (i) => { const b = btn(i); return b ? (typeof b.value === 'number' ? b.value : (b.pressed ? 1 : 0)) : 0 }
       const pressed = (i) => { const b = btn(i); return !!(b && b.pressed) }
-      if (pressed(14)) gs = -1
-      if (pressed(15)) gs = 1
+      if (pressed(14)) gs = 1
+      if (pressed(15)) gs = -1
       if (Math.abs(gs) > Math.abs(steer)) steer = gs
       throttle = Math.max(throttle, val(7), pressed(12) ? 1 : 0)
       brake = Math.max(brake, val(6), pressed(13) ? 1 : 0)
